@@ -191,7 +191,7 @@
       </div>
 
       <div class="panel">
-        <h2>Repuestos <span style="font-size:.7rem;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">— sin markup ni impuestos</span></h2>
+        <h2>Repuestos <span style="font-size:.7rem;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">— margen, ISR, cartera e IVA aplicados según tabla de referencia</span></h2>
         <div style="overflow-x:auto;">
           <table class="lines-table">
             <thead><tr>
@@ -377,6 +377,42 @@ const TECNICOS = ["Tecnico A","Tecnico B","Tecnico C","Tecnico D"];
 const TIPOS_SERVICIO = ["Mtto Preventivo","Mtto Correctivo","Diagnostico"];
 const ESTADOS = ["Pendiente","Enviada","Aprobada","Rechazada"];
 
+// Formula independiente para repuestos (imagen de referencia del usuario):
+// CostoSinIVA = CostoConIVA / 1.12
+// Margen = %tier * CostoSinIVA
+// ISR = 25% * Margen
+// Cartera = 2% * (CostoSinIVA + Margen + ISR)
+// IVA = 12% * (CostoSinIVA + Margen + ISR + Cartera)
+// PrecioVenta = CostoSinIVA + Margen + ISR + Cartera + IVA
+const REPUESTOS_TARIFAS = {
+  margenPct: { precio: 0.40, descuento: 0.30, franquicia: 0.25 },
+  isr: 0.25,
+  cartera: 0.02,
+  iva: 0.12
+};
+
+function calcularRepuestoLinea(costoConIVA, tier){
+  const costoSinIVA = costoConIVA / 1.12;
+  const margen = REPUESTOS_TARIFAS.margenPct[tier] * costoSinIVA;
+  const isr = REPUESTOS_TARIFAS.isr * margen;
+  const cartera = REPUESTOS_TARIFAS.cartera * (costoSinIVA + margen + isr);
+  const subtotal = costoSinIVA + margen + isr + cartera;
+  const iva = REPUESTOS_TARIFAS.iva * subtotal;
+  const precioVenta = subtotal + iva;
+  return { costoConIVA, costoSinIVA, margen, isr, cartera, iva, precioVenta };
+}
+
+function calcularRepuestosTotal(repuestos, tier){
+  let costoSinIVA=0, margen=0, isr=0, cartera=0, iva=0, precioVenta=0;
+  repuestos.forEach(rp=>{
+    const costoLinea = (Number(rp.cantidad)||0) * (Number(rp.precioUnitario)||0);
+    if(costoLinea<=0) return;
+    const r = calcularRepuestoLinea(costoLinea, tier);
+    costoSinIVA+=r.costoSinIVA; margen+=r.margen; isr+=r.isr; cartera+=r.cartera; iva+=r.iva; precioVenta+=r.precioVenta;
+  });
+  return { costoSinIVA, margen, isr, cartera, iva, precioVenta };
+}
+
 // ================================================================
 // STATE
 // ================================================================
@@ -519,34 +555,51 @@ function calcularCotizacion(state){
     }
   });
 
+  const hayEquipos = state.equipos.some(e=>e.equipo&&e.tecnico);
+
   const adm = TARIFAS.ventasAdmon*1.0 + TARIFAS.operativo*0.5;
   const viat= TARIFAS.viaticos.alimentacion*(Number(state.viaticos.alimentacion)||0)
             + TARIFAS.viaticos.gasolina*(Number(state.viaticos.gasolina)||0)
             + TARIFAS.viaticos.flete*(Number(state.viaticos.flete)||0)
             + TARIFAS.viaticos.parqueo*(Number(state.viaticos.parqueo)||0);
 
-  const costoBase = moD+moN+moF+adm+viat+diag+insTotal;
-  const mk = TARIFAS.markup.manoObra*(moD+moN+moF)
-           + TARIFAS.markup.administrativo*adm
-           + TARIFAS.markup.viaticos*viat
-           + TARIFAS.markup.diagnostico*diag
-           + TARIFAS.markup.insumos*insTotal;
-  const isr = mk*TARIFAS.isr;
-  const sinIVA = costoBase+mk+isr;
-  const iva    = sinIVA*TARIFAS.iva;
-  const conIVA = sinIVA+iva;
+  let costoBase=0, mk=0, isr=0, sinIVA=0, iva=0, conIVA=0, precioMO=0, descuentoMO=0, franquiciaMO=0;
 
-  const precioMO    = conIVA*TARIFAS.escalas.precio;
-  const descuentoMO = precioMO*TARIFAS.escalas.descuento;
-  const franquiciaMO= precioMO*TARIFAS.escalas.franquicia;
-  const totalRep = state.repuestos.reduce((s,r)=>s+(Number(r.cantidad)||0)*(Number(r.precioUnitario)||0),0);
+  if(hayEquipos){
+    // Solo se calcula mano de obra / admin / viaticos / insumos si hay al menos un equipo cotizado
+    costoBase = moD+moN+moF+adm+viat+diag+insTotal;
+    mk = TARIFAS.markup.manoObra*(moD+moN+moF)
+       + TARIFAS.markup.administrativo*adm
+       + TARIFAS.markup.viaticos*viat
+       + TARIFAS.markup.diagnostico*diag
+       + TARIFAS.markup.insumos*insTotal;
+    isr = mk*TARIFAS.isr;
+    sinIVA = costoBase+mk+isr;
+    iva    = sinIVA*TARIFAS.iva;
+    conIVA = sinIVA+iva;
+
+    precioMO    = conIVA*TARIFAS.escalas.precio;
+    descuentoMO = precioMO*TARIFAS.escalas.descuento;
+    franquiciaMO= precioMO*TARIFAS.escalas.franquicia;
+  }
+
+  // Repuestos: formula independiente (margen/ISR/cartera/IVA), calculada para los 3 tiers
+  const repPrecio     = calcularRepuestosTotal(state.repuestos, "precio");
+  const repDescuento  = calcularRepuestosTotal(state.repuestos, "descuento");
+  const repFranquicia = calcularRepuestosTotal(state.repuestos, "franquicia");
 
   return {
     manoObraDiurna:moD, manoObraNocturna:moN, manoObraFeriado:moF,
     administrativo:adm, viaticos:viat, diagnostico:diag, insumosTotal:insTotal,
     costoSinImpuestos:costoBase, sumaMarkups:mk, isr, precioSinIVA:sinIVA, iva, precioConIVA:conIVA,
-    precioMO, descuentoMO, franquiciaMO, totalRepuestos:totalRep, advertencias,
-    totales:{ precio:precioMO+totalRep, descuento:descuentoMO+totalRep, franquicia:franquiciaMO+totalRep }
+    precioMO, descuentoMO, franquiciaMO, advertencias, hayEquipos,
+    repuestos: { precio:repPrecio, descuento:repDescuento, franquicia:repFranquicia },
+    totalRepuestos: repPrecio.precioVenta, // referencia por defecto (tier "precio") para mostrar en resumen
+    totales:{
+      precio:     precioMO     + repPrecio.precioVenta,
+      descuento:  descuentoMO  + repDescuento.precioVenta,
+      franquicia: franquiciaMO + repFranquicia.precioVenta
+    }
   };
 }
 
@@ -635,17 +688,34 @@ function recalcular(){
 
   const grid = document.getElementById("summary-grid");
   grid.innerHTML="";
-  [{label:"Mano de obra",value:r.manoObraDiurna+r.manoObraNocturna+r.manoObraFeriado},
-   {label:"Insumos",value:r.insumosTotal},
-   {label:"Viáticos + Admin.",value:r.viaticos+r.administrativo},
-   {label:"Diagnóstico",value:r.diagnostico},
-   {label:"Costo base",value:r.costoSinImpuestos},
-   {label:"Markups",value:r.sumaMarkups},
-   {label:"ISR (25%)",value:r.isr},
-   {label:"IVA (12%)",value:r.iva},
-   {label:"Subtotal M.O.",value:r.precioMO},
-   {label:"Repuestos (sin cargos)",value:r.totalRepuestos,highlight:true}
-  ].forEach(c=>{
+  const cards = [];
+  if(r.hayEquipos){
+    cards.push(
+      {label:"Mano de obra",value:r.manoObraDiurna+r.manoObraNocturna+r.manoObraFeriado},
+      {label:"Insumos",value:r.insumosTotal},
+      {label:"Viáticos + Admin.",value:r.viaticos+r.administrativo},
+      {label:"Diagnóstico",value:r.diagnostico},
+      {label:"Costo base",value:r.costoSinImpuestos},
+      {label:"Markups",value:r.sumaMarkups},
+      {label:"ISR (25%)",value:r.isr},
+      {label:"IVA (12%)",value:r.iva},
+      {label:"Subtotal M.O.",value:r.precioMO}
+    );
+  } else if(state.repuestos.length===0 || !state.repuestos.some(rp=>rp.nombre&&Number(rp.precioUnitario)>0)){
+    cards.push({label:"Sin equipos ni repuestos",value:0});
+  }
+  const repSel = r.repuestos[selectedTier];
+  if(repSel && repSel.costoSinIVA>0){
+    cards.push(
+      {label:"Repuestos · Costo sin IVA",value:repSel.costoSinIVA},
+      {label:"Repuestos · Margen",value:repSel.margen},
+      {label:"Repuestos · ISR",value:repSel.isr},
+      {label:"Repuestos · Cartera",value:repSel.cartera},
+      {label:"Repuestos · IVA",value:repSel.iva},
+      {label:"Repuestos · Precio venta",value:repSel.precioVenta,highlight:true}
+    );
+  }
+  cards.forEach(c=>{
     const card=el("div",{class:"summary-card"+(c.highlight?" highlight":"")});
     card.appendChild(el("div",{class:"label",text:c.label}));
     card.appendChild(el("div",{class:"value",text:fmtQ(c.value)}));
@@ -653,9 +723,9 @@ function recalcular(){
   });
 
   const tg = document.getElementById("tier-options"); tg.innerHTML="";
-  [{key:"precio",label:"Precio",note:"M.O. ×1.10 + Repuestos",value:r.totales.precio},
-   {key:"descuento",label:"Descuento",note:"Precio ×0.95 + Repuestos",value:r.totales.descuento},
-   {key:"franquicia",label:"Franquicia",note:"Precio ×0.90 + Repuestos",value:r.totales.franquicia}
+  [{key:"precio",label:"Precio",note:r.hayEquipos?"M.O. ×1.10 + Repuestos (40% margen)":"Repuestos (40% margen)",value:r.totales.precio},
+   {key:"descuento",label:"Descuento",note:r.hayEquipos?"Precio ×0.95 + Repuestos (30% margen)":"Repuestos (30% margen)",value:r.totales.descuento},
+   {key:"franquicia",label:"Franquicia",note:r.hayEquipos?"Precio ×0.90 + Repuestos (25% margen)":"Repuestos (25% margen)",value:r.totales.franquicia}
   ].forEach(t=>{
     const c=el("div",{class:"tier-card"+(selectedTier===t.key?" selected":""),onClick:()=>{selectedTier=t.key;recalcular();}});
     c.appendChild(el("div",{class:"tname",text:t.label}));
@@ -673,7 +743,8 @@ async function guardarCotizacion(){
   const state = getFormState();
   if(!state.cliente.trim()){ showToast("Ingresa el nombre del cliente",true); return; }
   const eqv = state.equipos.filter(e=>e.equipo&&e.tecnico&&Number(e.horas)>0);
-  if(!eqv.length){ showToast("Agrega al menos un equipo con técnico y horas",true); return; }
+  const repValidos = state.repuestos.filter(r=>r.nombre&&Number(r.precioUnitario)>0);
+  if(!eqv.length && !repValidos.length){ showToast("Agrega al menos un equipo o un repuesto",true); return; }
 
   const r    = calcularCotizacion(state);
   const fecha= state.fecha||todayISO();
@@ -698,10 +769,33 @@ async function guardarCotizacion(){
 function enviarCorreo(cot,r){
   const sep="----------------------------------------";
   const eqLines = cot.equipos.map((e,i)=>`  ${i+1}. ${e.equipo} (x${e.cantidad}) - ${e.tipoServicio} - ${e.tecnico} - ${e.horas} hrs${e.observaciones?" - "+e.observaciones:""}`).join("\n");
-  const repLines= cot.repuestos.length ? "\nRepuestos (sin recargos):\n"+cot.repuestos.map((rr,i)=>`  ${i+1}. ${rr.nombre} x${rr.cantidad} @ GTQ ${Number(rr.precioUnitario).toFixed(2)}`).join("\n") : "";
+  const repLines= cot.repuestos.length ? "\nRepuestos:\n"+cot.repuestos.map((rr,i)=>`  ${i+1}. ${rr.nombre} x${rr.cantidad} @ GTQ ${Number(rr.precioUnitario).toFixed(2)}`).join("\n") : "";
   const v=cot.viaticos;
   const vLines=[v.alimentacion>0?`  Alimentacion: ${v.alimentacion} und.`:"",v.gasolina>0?`  Gasolina: ${v.gasolina} km`:"",v.flete>0?`  Flete: ${v.flete} km`:"",v.parqueo>0?`  Parqueo: ${v.parqueo} und.`:""].filter(Boolean).join("\n");
-  const body=[`Estimado(a) cliente,`,``,`Le compartimos el resumen de la cotizacion ${cot.id} emitida por ATG.`,``,sep,`COTIZACION ${cot.id}`,sep,`Fecha:    ${cot.fecha}`,`Vigencia: ${cot.vence}`,`Vendedor: ${cot.vendedor||"-"}`,`Jornada:  ${cot.jornada}`,``,`EQUIPOS:`,eqLines,repLines||"",vLines?`\nViaticos:\n${vLines}`:"",``,sep,`DETALLE DE PRECIO`,sep,`Mano de obra:      ${fmtQ(r.manoObraDiurna+r.manoObraNocturna+r.manoObraFeriado)}`,`Insumos:           ${fmtQ(r.insumosTotal)}`,`Viaticos+Admin.:   ${fmtQ(r.viaticos+r.administrativo)}`,`Diagnostico:       ${fmtQ(r.diagnostico)}`,`Markups:           ${fmtQ(r.sumaMarkups)}`,`ISR (25%):         ${fmtQ(r.isr)}`,`IVA (12%):         ${fmtQ(r.iva)}`,`Subtotal M.O.:     ${fmtQ(r.precioMO)}`,cot.repuestos.length?`Repuestos:         ${fmtQ(r.totalRepuestos)}`:"",``,`Tipo de precio:    ${capitalize(cot.tipoPrecio)}`,`TOTAL COTIZADO:    ${fmtQ(cot.total)}`,``,sep,`Cotizacion valida hasta el ${cot.vence}.`,``,`Atentamente,`,`${cot.vendedor||"Equipo ATG"}`,`Cotizador Servicios ATG v2.0`].join("\n");
+
+  const repSel = r.repuestos[cot.tipoPrecio];
+  const moLines = r.hayEquipos ? [
+    `Mano de obra:      ${fmtQ(r.manoObraDiurna+r.manoObraNocturna+r.manoObraFeriado)}`,
+    `Insumos:           ${fmtQ(r.insumosTotal)}`,
+    `Viaticos+Admin.:   ${fmtQ(r.viaticos+r.administrativo)}`,
+    `Diagnostico:       ${fmtQ(r.diagnostico)}`,
+    `Markups:           ${fmtQ(r.sumaMarkups)}`,
+    `ISR (25%):         ${fmtQ(r.isr)}`,
+    `IVA (12%):         ${fmtQ(r.iva)}`,
+    `Subtotal M.O.:     ${fmtQ(r.precioMO)}`
+  ].join("\n") : "";
+  const repPriceLines = (repSel && repSel.costoSinIVA>0) ? [
+    ``,
+    `Repuestos:`,
+    `  Costo sin IVA:   ${fmtQ(repSel.costoSinIVA)}`,
+    `  Margen:          ${fmtQ(repSel.margen)}`,
+    `  ISR:             ${fmtQ(repSel.isr)}`,
+    `  Cartera:         ${fmtQ(repSel.cartera)}`,
+    `  IVA:             ${fmtQ(repSel.iva)}`,
+    `  Precio venta:    ${fmtQ(repSel.precioVenta)}`
+  ].join("\n") : "";
+
+  const body=[`Estimado(a) cliente,`,``,`Le compartimos el resumen de la cotizacion ${cot.id} emitida por ATG.`,``,sep,`COTIZACION ${cot.id}`,sep,`Fecha:    ${cot.fecha}`,`Vigencia: ${cot.vence}`,`Vendedor: ${cot.vendedor||"-"}`,`Jornada:  ${cot.jornada}`,``,`EQUIPOS:`,eqLines||"  (ninguno)",repLines||"",vLines?`\nViaticos:\n${vLines}`:"",``,sep,`DETALLE DE PRECIO`,sep,moLines,repPriceLines,``,`Tipo de precio:    ${capitalize(cot.tipoPrecio)}`,`TOTAL COTIZADO:    ${fmtQ(cot.total)}`,``,sep,`Cotizacion valida hasta el ${cot.vence}.`,``,`Atentamente,`,`${cot.vendedor||"Equipo ATG"}`,`Cotizador Servicios ATG v2.0`].join("\n");
   window.location.href=`mailto:${encodeURIComponent(cot.correo)}?subject=${encodeURIComponent("Cotizacion "+cot.id+" - "+cot.cliente+" - ATG")}&body=${encodeURIComponent(body)}`;
 }
 
@@ -772,7 +866,7 @@ function abrirDetalle(cot){
   cot.equipos.forEach(e=>tbEq.appendChild(el("tr",{},[el("td",{text:String(e.cantidad)}),el("td",{text:e.equipo}),el("td",{text:e.tipoServicio}),el("td",{text:e.tecnico}),el("td",{text:String(e.horas)}),el("td",{text:e.observaciones||"-"})])));
   tEq.appendChild(tbEq); mc.appendChild(tEq);
   if(cot.repuestos?.length){
-    mc.appendChild(el("p",{class:"small-text",style:"margin-bottom:6px;font-weight:700;",text:"Repuestos (sin recargos):"}));
+    mc.appendChild(el("p",{class:"small-text",style:"margin-bottom:6px;font-weight:700;",text:"Repuestos:"}));
     const tR=el("table",{class:"data-table",style:"margin-bottom:14px;"});
     tR.appendChild(el("thead",{},[el("tr",{},["Cant.","Repuesto","P. Unit.","Total"].map(h=>el("th",{text:h})))]));
     const tbR=el("tbody");
@@ -780,8 +874,17 @@ function abrirDetalle(cot){
     tR.appendChild(tbR); mc.appendChild(tR);
   }
   const rc=cot.calculo;
+  const repSel = rc.repuestos ? rc.repuestos[cot.tipoPrecio] : null;
   const sg=el("div",{class:"summary-grid",style:"margin-bottom:14px;"});
-  [{label:"Costo base",value:rc.costoSinImpuestos},{label:"Markups",value:rc.sumaMarkups},{label:"ISR",value:rc.isr},{label:"IVA",value:rc.iva},{label:"M.O. Precio",value:rc.precioMO},{label:"M.O. Descuento",value:rc.descuentoMO},{label:"M.O. Franquicia",value:rc.franquiciaMO},{label:"Repuestos",value:rc.totalRepuestos},{label:"TOTAL ("+capitalize(cot.tipoPrecio)+")",value:cot.total,highlight:true}].forEach(c=>{
+  const detalleCards = [];
+  if(rc.hayEquipos){
+    detalleCards.push({label:"Costo base M.O.",value:rc.costoSinImpuestos},{label:"Markups M.O.",value:rc.sumaMarkups},{label:"ISR M.O.",value:rc.isr},{label:"IVA M.O.",value:rc.iva},{label:"Subtotal M.O.",value:rc.precioMO});
+  }
+  if(repSel && repSel.costoSinIVA>0){
+    detalleCards.push({label:"Rep. Costo sin IVA",value:repSel.costoSinIVA},{label:"Rep. Margen",value:repSel.margen},{label:"Rep. ISR",value:repSel.isr},{label:"Rep. Cartera",value:repSel.cartera},{label:"Rep. IVA",value:repSel.iva},{label:"Rep. Precio venta",value:repSel.precioVenta});
+  }
+  detalleCards.push({label:"TOTAL ("+capitalize(cot.tipoPrecio)+")",value:cot.total,highlight:true});
+  detalleCards.forEach(c=>{
     const card=el("div",{class:"summary-card"+(c.highlight?" highlight":"")});
     card.appendChild(el("div",{class:"label",text:c.label}));
     card.appendChild(el("div",{class:"value",text:fmtQ(c.value)}));
