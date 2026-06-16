@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizador Servicios ATG v2.0</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#161d26; --panel2:#1c2530; --line:#2a3441;
+    --text:#e8edf2; --text-dim:#8a98a8; --accent:#ff8c2b;
+    --ok:#3ddc97; --warn:#ffd166; --bad:#ff5d5d;
+    --mono:'JetBrains Mono','Courier New',monospace;
+    --sans:'Inter',-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;line-height:1.4;}
+
+  /* LOGIN */
+  .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);}
+  .login-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:40px;width:100%;max-width:380px;}
+  .login-box h1{font-size:1rem;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:6px;}
+  .login-box p{font-size:.8rem;color:var(--text-dim);margin-bottom:28px;}
+  .login-error{background:rgba(255,93,93,.1);border:1px solid var(--bad);color:var(--bad);border-radius:6px;padding:10px 14px;font-size:.82rem;margin-bottom:14px;display:none;}
+
+  /* TOPBAR */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--panel);border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:50;}
+  .topbar h1{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+  .topbar h1 span{color:var(--accent);}
+  .topbar-right{display:flex;align-items:center;gap:14px;}
+  .user-pill{font-size:.75rem;color:var(--text-dim);background:var(--panel2);padding:5px 12px;border-radius:20px;}
+  .tabs{display:flex;gap:4px;}
+  .tab-btn{background:none;border:none;color:var(--text-dim);padding:9px 16px;font-size:.8rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;border-radius:6px 6px 0 0;transition:all .15s;font-family:var(--sans);}
+  .tab-btn:hover{color:var(--text);background:var(--panel2);}
+  .tab-btn.active{color:var(--accent);background:var(--panel2);}
+  .btn-logout{background:none;border:1px solid var(--line);color:var(--text-dim);padding:6px 12px;border-radius:6px;font-size:.75rem;cursor:pointer;font-family:var(--sans);}
+  .btn-logout:hover{border-color:var(--bad);color:var(--bad);}
+
+  .container{max-width:1300px;margin:0 auto;padding:24px;}
+  .view{display:none;}
+  .view.active{display:block;animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:20px;}
+  .panel h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin-bottom:16px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media(max-width:760px){.grid3{grid-template-columns:1fr;}}
+  label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:6px;font-weight:600;}
+  input,select,textarea{width:100%;padding:9px 11px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--text);font-size:.9rem;font-family:var(--sans);}
+  input:focus,select:focus{outline:none;border-color:var(--accent);}
+  .field{margin-bottom:14px;}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border:none;border-radius:6px;font-size:.82rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:all .15s;font-family:var(--sans);}
+  .btn-primary{background:var(--accent);color:#1a0f00;}
+  .btn-primary:hover{background:#ffa44d;}
+  .btn-secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line);}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-danger{background:transparent;color:var(--bad);border:1px solid var(--bad);}
+  .btn-danger:hover{background:rgba(255,93,93,.1);}
+  .btn-sm{padding:6px 12px;font-size:.72rem;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .lines-table{width:100%;border-collapse:collapse;font-size:.85rem;}
+  .lines-table th{text-align:left;padding:8px 6px;color:var(--text-dim);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line);font-weight:700;}
+  .lines-table td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  .lines-table input,.lines-table select{padding:6px 8px;font-size:.82rem;}
+  .lines-table tr:last-child td{border-bottom:none;}
+  .line-remove{background:none;border:none;color:var(--bad);cursor:pointer;font-size:1rem;padding:4px 8px;}
+  .line-remove:hover{color:#ff8080;}
+  .line-meta{font-size:.7rem;color:var(--text-dim);}
+
+  .warn-box{background:rgba(255,209,102,.08);border:1px solid var(--warn);border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:.83rem;color:var(--warn);display:none;}
+  .warn-box ul{padding-left:16px;line-height:1.8;}
+
+  .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+  @media(max-width:1000px){.summary-grid{grid-template-columns:repeat(3,1fr);}}
+  .summary-card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;}
+  .summary-card .label{font-size:.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;}
+  .summary-card .value{font-size:1.05rem;font-weight:800;font-family:var(--mono);}
+  .summary-card.highlight{border-color:var(--accent);}
+  .summary-card.highlight .value{color:var(--accent);}
+
+  .tier-options{display:flex;gap:10px;flex-wrap:wrap;}
+  .tier-card{flex:1;min-width:160px;background:var(--panel2);border:2px solid var(--line);border-radius:8px;padding:14px;cursor:pointer;text-align:center;transition:all .15s;}
+  .tier-card:hover{border-color:var(--text-dim);}
+  .tier-card.selected{border-color:var(--accent);background:rgba(255,140,43,.08);}
+  .tier-card .tname{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:6px;}
+  .tier-card .tval{font-size:1.2rem;font-weight:800;font-family:var(--mono);}
+  .tier-card.selected .tval{color:var(--accent);}
+
+  table.data-table{width:100%;border-collapse:collapse;font-size:.83rem;}
+  table.data-table th{text-align:left;padding:10px 12px;background:var(--panel2);color:var(--text-dim);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line);}
+  table.data-table td{padding:10px 12px;border-bottom:1px solid var(--line);}
+  table.data-table tr:hover td{background:rgba(255,255,255,.02);}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;max-height:560px;overflow-y:auto;}
+  select.status-select{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:4px 8px;font-size:.75rem;border-radius:6px;}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--text-dim);}
+  .empty-state .big{font-size:2.5rem;margin-bottom:10px;}
+
+  table.cat-table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:860px;}
+  table.cat-table th{text-align:left;padding:8px 10px;background:var(--panel2);color:var(--text-dim);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line);}
+  table.cat-table td{padding:6px 10px;border-bottom:1px solid var(--line);}
+  table.cat-table input,table.cat-table select{padding:5px 8px;font-size:.8rem;}
+  table.insumos-table{border-collapse:collapse;font-size:.85rem;min-width:320px;}
+  table.insumos-table th{text-align:left;padding:8px 12px;background:var(--panel2);color:var(--text-dim);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line);}
+  table.insumos-table td{padding:7px 12px;border-bottom:1px solid var(--line);}
+  table.insumos-table input{padding:6px 8px;font-size:.85rem;width:120px;}
+
+  .actions-row{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;}
+  .small-text{font-size:.75rem;color:var(--text-dim);}
+  .divider{border-top:1px solid var(--line);margin:16px 0;}
+  .id-pill{font-family:var(--mono);font-size:.75rem;background:var(--panel2);padding:2px 8px;border-radius:4px;color:var(--accent);}
+  .section-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700;margin-bottom:10px;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:300;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px;max-width:700px;width:92%;max-height:85vh;overflow-y:auto;}
+  .modal h3{color:var(--accent);margin-bottom:14px;text-transform:uppercase;letter-spacing:.06em;font-size:.9rem;}
+  .modal-close{float:right;background:none;border:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer;}
+
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--accent);border-radius:8px;padding:12px 20px;font-size:.85rem;z-index:400;transform:translateY(100px);opacity:0;transition:all .25s;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:340px;}
+  .toast.show{transform:translateY(0);opacity:1;}
+
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .saving-indicator{font-size:.75rem;color:var(--text-dim);display:none;align-items:center;}
+  .saving-indicator.show{display:flex;}
+</style>
+</head>
+<body>
+
+<!-- ====== LOGIN ====== -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <h1>Cotizador Servicios<br><span style="color:var(--accent)">ATG v2.0</span></h1>
+    <p>Ingresa tus credenciales para continuar</p>
+    <div class="login-error" id="login-error"></div>
+    <div class="field"><label>Correo</label><input type="email" id="login-email" placeholder="tu@correo.com" autocomplete="email"></div>
+    <div class="field"><label>Contraseña</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="btn btn-primary" id="btn-login" style="width:100%;justify-content:center;">Ingresar</button>
+  </div>
+</div>
+
+<!-- ====== APP (hidden until logged in) ====== -->
+<div id="app-screen" style="display:none;">
+  <div class="topbar">
+    <h1>Cotizador Servicios<span>·</span>ATG v2.0</h1>
+    <div class="tabs">
+      <button class="tab-btn active" data-view="nueva">Nueva Cotización</button>
+      <button class="tab-btn" data-view="historico">Histórico</button>
+      <button class="tab-btn" data-view="catalogo">Catálogo & Tarifas</button>
+    </div>
+    <div class="topbar-right">
+      <span class="saving-indicator" id="saving-indicator"><span class="spinner"></span>Guardando...</span>
+      <span class="user-pill" id="user-pill">—</span>
+      <button class="btn-logout" id="btn-logout">Salir</button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- NUEVA COTIZACION -->
+    <div class="view active" id="view-nueva">
+      <div class="panel">
+        <h2>Datos generales</h2>
+        <div class="grid3">
+          <div class="field"><label>Cliente</label><input type="text" id="inp-cliente" placeholder="Nombre del cliente"></div>
+          <div class="field"><label>Correo</label><input type="email" id="inp-correo" placeholder="correo@cliente.com"></div>
+          <div class="field"><label>Vendedor</label><input type="text" id="inp-vendedor" placeholder="Nombre del vendedor"></div>
+          <div class="field"><label>Jornada</label><select id="inp-jornada"><option value="Diurno">Diurno</option><option value="Nocturno">Nocturno</option><option value="Feriado">Feriado</option></select></div>
+          <div class="field"><label>Vigencia (días)</label><input type="number" id="inp-vigencia" value="30" min="1"></div>
+          <div class="field"><label>Fecha</label><input type="date" id="inp-fecha"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Equipos a cotizar</h2>
+        <div style="overflow-x:auto;">
+          <table class="lines-table">
+            <thead><tr>
+              <th style="width:32px;">#</th><th style="width:56px;">Cant.</th>
+              <th style="min-width:190px;">Equipo</th><th style="width:145px;">Tipo Servicio</th>
+              <th style="width:125px;">Técnico</th><th style="width:75px;">Horas</th>
+              <th style="min-width:140px;">Observaciones</th><th style="width:36px;"></th>
+            </tr></thead>
+            <tbody id="equipos-body"></tbody>
+          </table>
+        </div>
+        <div class="actions-row" style="justify-content:flex-start;margin-top:10px;">
+          <button class="btn btn-secondary btn-sm" id="btn-add-equipo">+ Agregar equipo</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Repuestos <span style="font-size:.7rem;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">— sin markup ni impuestos</span></h2>
+        <div style="overflow-x:auto;">
+          <table class="lines-table">
+            <thead><tr>
+              <th style="width:32px;">#</th><th style="width:56px;">Cant.</th>
+              <th style="min-width:220px;">Repuesto</th>
+              <th style="width:130px;">Precio Unit. (GTQ)</th><th style="width:130px;">Total</th>
+              <th style="width:36px;"></th>
+            </tr></thead>
+            <tbody id="repuestos-body"></tbody>
+          </table>
+        </div>
+        <div class="actions-row" style="justify-content:flex-start;margin-top:10px;">
+          <button class="btn btn-secondary btn-sm" id="btn-add-repuesto">+ Agregar repuesto</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Viáticos</h2>
+        <div class="grid3">
+          <div class="field"><label>Alimentación (unidades)</label><input type="number" id="inp-alimentacion" value="0" min="0"></div>
+          <div class="field"><label>Gasolina (km)</label><input type="number" id="inp-gasolina" value="0" min="0"></div>
+          <div class="field"><label>Flete (km)</label><input type="number" id="inp-flete" value="0" min="0"></div>
+          <div class="field"><label>Parqueo (unidades)</label><input type="number" id="inp-parqueo" value="0" min="0"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Resumen de cálculo</h2>
+        <div id="warn-tope" class="warn-box"></div>
+        <div class="summary-grid" id="summary-grid"></div>
+        <div class="divider"></div>
+        <div class="section-label">Tipo de precio a cotizar</div>
+        <div class="tier-options" id="tier-options"></div>
+        <div class="divider"></div>
+        <div class="actions-row">
+          <button class="btn btn-secondary" id="btn-reset">Limpiar formulario</button>
+          <button class="btn btn-primary" id="btn-guardar">Guardar cotización</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORICO -->
+    <div class="view" id="view-historico">
+      <div class="panel">
+        <h2>Cotizaciones registradas</h2>
+        <div class="grid3" style="margin-bottom:16px;">
+          <div class="field"><label>Buscar por cliente</label><input type="text" id="filter-cliente" placeholder="Filtrar..."></div>
+          <div class="field"><label>Estado</label>
+            <select id="filter-estado">
+              <option value="">Todos</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Enviada">Enviada</option>
+              <option value="Aprobada">Aprobada</option>
+              <option value="Rechazada">Rechazada</option>
+            </select>
+          </div>
+          <div class="field"><label>&nbsp;</label><button class="btn btn-secondary" id="btn-export-json" style="width:100%;">Exportar JSON</button></div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>ID</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th>
+              <th>Creado por</th><th>Tipo</th><th>Total</th><th>Estado</th><th>Vence</th><th></th>
+            </tr></thead>
+            <tbody id="historico-body"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="historico-empty" style="display:none;"><div class="big">∅</div><p>Sin cotizaciones registradas.</p></div>
+      </div>
+    </div>
+
+    <!-- CATALOGO -->
+    <div class="view" id="view-catalogo">
+      <div class="panel">
+        <h2>Tarifas de insumos por complejidad</h2>
+        <p class="small-text" style="margin-bottom:14px;">Costo de materiales/insumos según complejidad del equipo. No aplica en servicios de diagnóstico.</p>
+        <table class="insumos-table">
+          <thead><tr><th>Complejidad</th><th>Costo insumos (GTQ)</th></tr></thead>
+          <tbody id="insumos-cfg-body"></tbody>
+        </table>
+        <div class="actions-row" style="justify-content:flex-start;margin-top:12px;">
+          <button class="btn btn-secondary btn-sm" id="btn-restaurar-insumos">Restaurar valores por defecto</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Catálogo de equipos</h2>
+        <p class="small-text" style="margin-bottom:14px;">Factor M.O.: multiplica el costo de mano de obra (0.4 = simple, 1.5 = complejo). Valor de referencia: usado para la advertencia de tope 20%.</p>
+        <div style="overflow-x:auto;">
+          <table class="cat-table">
+            <thead><tr>
+              <th style="min-width:200px;">Equipo</th><th>Tipo</th>
+              <th>Valor ref. (GTQ)</th><th>Complejidad</th>
+              <th>Factor M.O.</th><th>Horas estándar</th>
+            </tr></thead>
+            <tbody id="catalogo-body"></tbody>
+          </table>
+        </div>
+        <div class="actions-row">
+          <button class="btn btn-secondary" id="btn-restaurar-catalogo">Restaurar valores por defecto</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+</div><!-- /app-screen -->
+
+<div class="modal-overlay" id="modal-overlay"><div class="modal" id="modal-content"></div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+// ================================================================
+// FIREBASE CONFIG
+// ================================================================
+import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword,
+         signOut, onAuthStateChanged }            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc,
+         getDocs, updateDoc, deleteDoc, setDoc,
+         getDoc, query, orderBy, onSnapshot }     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAUZ3WnaEC1GsgmsWuSfXimYgSD2ENktJo",
+  authDomain: "cotizador-atg.firebaseapp.com",
+  projectId: "cotizador-atg",
+  storageBucket: "cotizador-atg.firebasestorage.app",
+  messagingSenderId: "855508292616",
+  appId: "1:855508292616:web:38ae94f2183cfb5f502dbd"
+};
+
+const fbApp  = initializeApp(firebaseConfig);
+const auth   = getAuth(fbApp);
+const db     = getFirestore(fbApp);
+
+// ================================================================
+// CATALOGO DEFAULT
+// ================================================================
+const CATALOGO_DEFAULT = [
+  {id:1,  nombre:"Freidora mecanica de una tina",         tipo:"Caliente", valor:5500,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:2,  nombre:"Maquina de hilo",                        tipo:"Frio",     valor:4500,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:3,  nombre:"Freidora automatica de una tina",        tipo:"Caliente", valor:9000,  complejidad:"Alta",  factor:1.3,  horasEstandar:1.5},
+  {id:4,  nombre:"Estufa de 6 quemadores",                 tipo:"Caliente", valor:10000, complejidad:"Media", factor:1.0,  horasEstandar:1.5},
+  {id:5,  nombre:"Estufa de 4 quemadores",                 tipo:"Caliente", valor:8000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:6,  nombre:'Plancha de 24"',                         tipo:"Caliente", valor:4000,  complejidad:"Baja",  factor:0.7,  horasEstandar:0.75},
+  {id:7,  nombre:'Plancha de 36"',                         tipo:"Caliente", valor:5500,  complejidad:"Baja",  factor:0.7,  horasEstandar:0.75},
+  {id:8,  nombre:'Plancha de 48"',                         tipo:"Caliente", valor:7000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:9,  nombre:"Refrigerador de 1 puerta",               tipo:"Frio",     valor:6000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:10, nombre:"Refrigerador de 2 puertas",              tipo:"Frio",     valor:9500,  complejidad:"Media", factor:1.1,  horasEstandar:1.25},
+  {id:11, nombre:"Refrigerada de 1 puerta",                tipo:"Frio",     valor:8000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:12, nombre:"Refrigerada de 2 puertas",               tipo:"Frio",     valor:12000, complejidad:"Media", factor:1.1,  horasEstandar:1.25},
+  {id:13, nombre:"Refrigerada de 3 puertas",               tipo:"Frio",     valor:16000, complejidad:"Alta",  factor:1.3,  horasEstandar:1.5},
+  {id:14, nombre:"Campana de extraccion",                  tipo:"Caliente", valor:7000,  complejidad:"Baja",  factor:0.7,  horasEstandar:0.75},
+  {id:15, nombre:"Microondas",                             tipo:"Caliente", valor:1500,  complejidad:"Baja",  factor:0.5,  horasEstandar:0.5},
+  {id:16, nombre:"Crepera",                                tipo:"Caliente", valor:3000,  complejidad:"Baja",  factor:0.6,  horasEstandar:0.5},
+  {id:17, nombre:"Cuarto frio",                            tipo:"Frio",     valor:35000, complejidad:"Alta",  factor:1.5,  horasEstandar:2.5},
+  {id:18, nombre:"Licuadora",                              tipo:"Frio",     valor:1000,  complejidad:"Baja",  factor:0.4,  horasEstandar:0.25},
+  {id:19, nombre:"Rebanadora",                             tipo:"Frio",     valor:4500,  complejidad:"Media", factor:0.9,  horasEstandar:0.75},
+  {id:20, nombre:"Vinera",                                 tipo:"Frio",     valor:5000,  complejidad:"Media", factor:0.9,  horasEstandar:0.75},
+  {id:21, nombre:"Conveccion",                             tipo:"Caliente", valor:12000, complejidad:"Alta",  factor:1.3,  horasEstandar:1.5},
+  {id:22, nombre:"Horno de pizza",                         tipo:"Caliente", valor:9000,  complejidad:"Media", factor:1.1,  horasEstandar:1.25},
+  {id:23, nombre:"Horno de pizza de banda",                tipo:"Caliente", valor:18000, complejidad:"Alta",  factor:1.4,  horasEstandar:2.0},
+  {id:24, nombre:"Horno combi",                            tipo:"Caliente", valor:25000, complejidad:"Alta",  factor:1.5,  horasEstandar:2.5},
+  {id:25, nombre:"Equipos con computadora",                tipo:"Caliente", valor:15000, complejidad:"Alta",  factor:1.4,  horasEstandar:2.0},
+  {id:26, nombre:"Congelador",                             tipo:"Frio",     valor:8000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:27, nombre:"Mini vitrina refrigerada vertical",      tipo:"Frio",     valor:6500,  complejidad:"Media", factor:0.9,  horasEstandar:1.0},
+  {id:28, nombre:"Mesa fria",                              tipo:"Frio",     valor:9000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:29, nombre:"Maquina de granita",                     tipo:"Frio",     valor:7000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
+  {id:30, nombre:"Fogon",                                  tipo:"Caliente", valor:6000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0}
+];
+
+const TARIFAS = {
+  costoTecnico: {"Tecnico A":180,"Tecnico B":150,"Tecnico C":100,"Tecnico D":80},
+  costoDiagnostico: 100,
+  ventasAdmon: 215, operativo: 135,
+  jornadaFactor: {"Diurno":1,"Nocturno":1.5,"Feriado":2},
+  viaticos: {alimentacion:50, gasolina:3.5, flete:3.5, parqueo:20},
+  insumosPorComplejidad: {"Baja":100,"Media":150,"Alta":250},
+  markup: {manoObra:0.45, administrativo:0.45, viaticos:0.10, diagnostico:0.10, insumos:0.15},
+  isr:0.25, iva:0.12,
+  escalas: {precio:1.10, descuento:0.95, franquicia:0.90},
+  topeAdvertencia: 0.20
+};
+const TECNICOS = ["Tecnico A","Tecnico B","Tecnico C","Tecnico D"];
+const TIPOS_SERVICIO = ["Mtto Preventivo","Mtto Correctivo","Diagnostico"];
+const ESTADOS = ["Pendiente","Enviada","Aprobada","Rechazada"];
+
+// ================================================================
+// STATE
+// ================================================================
+let CATALOGO     = [];
+let INSUMOS_CFG  = {...TARIFAS.insumosPorComplejidad};
+let HISTORICO    = [];
+let currentUser  = null;
+let lineCounter  = 0;
+let repCounter   = 0;
+let selectedTier = "precio";
+let unsubHistorico = null;
+
+// ================================================================
+// UTILS
+// ================================================================
+const fmtQ = n => "GTQ " + (isNaN(n)?0:n).toLocaleString("es-GT",{minimumFractionDigits:2,maximumFractionDigits:2});
+const todayISO = () => new Date().toISOString().slice(0,10);
+const addDays  = (d,n) => { const dt=new Date(d); dt.setDate(dt.getDate()+Number(n||0)); return dt.toISOString().slice(0,10); };
+const capitalize = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : "";
+const nextCotId  = () => "COT-" + Date.now().toString(36).toUpperCase();
+
+function showToast(msg, warn=false){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.borderColor = warn ? "var(--warn)" : "var(--accent)";
+  t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 3000);
+}
+function showSaving(v){ document.getElementById("saving-indicator").classList.toggle("show",v); }
+
+function el(tag, attrs={}, children=[]){
+  const e = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs)){
+    if(k==="text") e.textContent=v;
+    else if(k==="html") e.innerHTML=v;
+    else if(k.startsWith("on")) e.addEventListener(k.slice(2).toLowerCase(),v);
+    else e.setAttribute(k,v);
+  }
+  for(const c of children) if(c) e.appendChild(c);
+  return e;
+}
+const makeCell = child => { const td=el("td"); td.appendChild(child); return td; };
+
+// ================================================================
+// FIREBASE HELPERS
+// ================================================================
+async function loadCatalogoFromDB(){
+  try {
+    const snap = await getDoc(doc(db,"config","catalogo"));
+    if(snap.exists()) return snap.data().items;
+  } catch(e){}
+  return JSON.parse(JSON.stringify(CATALOGO_DEFAULT));
+}
+async function saveCatalogoDB(){
+  showSaving(true);
+  try { await setDoc(doc(db,"config","catalogo"),{items:CATALOGO}); } catch(e){}
+  showSaving(false);
+}
+async function loadInsumosFromDB(){
+  try {
+    const snap = await getDoc(doc(db,"config","insumos"));
+    if(snap.exists()) return snap.data();
+  } catch(e){}
+  return {...TARIFAS.insumosPorComplejidad};
+}
+async function saveInsumosDB(){
+  showSaving(true);
+  try { await setDoc(doc(db,"config","insumos"), INSUMOS_CFG); } catch(e){}
+  showSaving(false);
+}
+
+function subscribeHistorico(){
+  if(unsubHistorico) unsubHistorico();
+  const q = query(collection(db,"cotizaciones"), orderBy("fecha","desc"));
+  unsubHistorico = onSnapshot(q, snap => {
+    HISTORICO = snap.docs.map(d=>({...d.data(), _docId:d.id}));
+    renderHistorico();
+  });
+}
+
+async function saveCotizacion(cot){
+  showSaving(true);
+  try { await addDoc(collection(db,"cotizaciones"), cot); } catch(e){ showToast("Error al guardar: "+e.message, true); }
+  showSaving(false);
+}
+async function updateEstado(docId, campo, valor){
+  showSaving(true);
+  try { await updateDoc(doc(db,"cotizaciones",docId),{[campo]:valor}); } catch(e){}
+  showSaving(false);
+}
+async function deleteCotizacion(docId){
+  showSaving(true);
+  try { await deleteDoc(doc(db,"cotizaciones",docId)); } catch(e){}
+  showSaving(false);
+}
+
+// ================================================================
+// CALCULO
+// ================================================================
+function getInsumosParaEquipo(eq, tipoServicio){
+  if(tipoServicio === "Diagnostico") return 0;
+  if(!eq) return INSUMOS_CFG["Media"]??150;
+  return INSUMOS_CFG[eq.complejidad] ?? TARIFAS.insumosPorComplejidad[eq.complejidad] ?? 150;
+}
+
+function calcularCotizacion(state){
+  const jornada = state.jornada;
+  let moD=0, moN=0, moF=0, diag=0, insTotal=0;
+  const advertencias=[];
+
+  state.equipos.forEach(linea=>{
+    if(!linea.equipo||!linea.tecnico) return;
+    const eq = CATALOGO.find(e=>e.nombre===linea.equipo)||null;
+    const factor = eq?eq.factor:1.0;
+    const cant = Number(linea.cantidad)||0;
+    const hrs  = Number(linea.horas)||0;
+    const costoH = TARIFAS.costoTecnico[linea.tecnico]??0;
+    let moBase = costoH*hrs*cant*factor;
+
+    let lD=0,lN=0,lF=0,lDiag=0;
+    if(linea.tipoServicio==="Diagnostico"){ lDiag=TARIFAS.costoDiagnostico*hrs*cant; }
+    else {
+      if(jornada==="Diurno")    lD=moBase;
+      else if(jornada==="Nocturno") lN=moBase*TARIFAS.jornadaFactor["Nocturno"];
+      else if(jornada==="Feriado")  lF=moBase*TARIFAS.jornadaFactor["Feriado"];
+    }
+    const ins = getInsumosParaEquipo(eq, linea.tipoServicio)*cant;
+    moD+=lD; moN+=lN; moF+=lF; diag+=lDiag; insTotal+=ins;
+
+    if(eq&&eq.valor>0){
+      const nEq = state.equipos.filter(e=>e.equipo&&e.tecnico).length||1;
+      const admL = (TARIFAS.ventasAdmon+TARIFAS.operativo*0.5)/nEq;
+      const moL  = lD+lN+lF+lDiag;
+      const costoL = moL+ins+admL;
+      const mkL = TARIFAS.markup.manoObra*moL + TARIFAS.markup.insumos*ins + TARIFAS.markup.administrativo*admL;
+      const isrL= mkL*TARIFAS.isr;
+      const precL = (costoL+mkL+isrL)*(1+TARIFAS.iva)*TARIFAS.escalas.precio;
+      const tope  = eq.valor*TARIFAS.topeAdvertencia;
+      if(precL>tope) advertencias.push({equipo:linea.equipo, precioCalculado:precL, valorEquipo:eq.valor, tope, pct:precL/eq.valor*100});
+    }
+  });
+
+  const adm = TARIFAS.ventasAdmon*1.0 + TARIFAS.operativo*0.5;
+  const viat= TARIFAS.viaticos.alimentacion*(Number(state.viaticos.alimentacion)||0)
+            + TARIFAS.viaticos.gasolina*(Number(state.viaticos.gasolina)||0)
+            + TARIFAS.viaticos.flete*(Number(state.viaticos.flete)||0)
+            + TARIFAS.viaticos.parqueo*(Number(state.viaticos.parqueo)||0);
+
+  const costoBase = moD+moN+moF+adm+viat+diag+insTotal;
+  const mk = TARIFAS.markup.manoObra*(moD+moN+moF)
+           + TARIFAS.markup.administrativo*adm
+           + TARIFAS.markup.viaticos*viat
+           + TARIFAS.markup.diagnostico*diag
+           + TARIFAS.markup.insumos*insTotal;
+  const isr = mk*TARIFAS.isr;
+  const sinIVA = costoBase+mk+isr;
+  const iva    = sinIVA*TARIFAS.iva;
+  const conIVA = sinIVA+iva;
+
+  const precioMO    = conIVA*TARIFAS.escalas.precio;
+  const descuentoMO = precioMO*TARIFAS.escalas.descuento;
+  const franquiciaMO= precioMO*TARIFAS.escalas.franquicia;
+  const totalRep = state.repuestos.reduce((s,r)=>s+(Number(r.cantidad)||0)*(Number(r.precioUnitario)||0),0);
+
+  return {
+    manoObraDiurna:moD, manoObraNocturna:moN, manoObraFeriado:moF,
+    administrativo:adm, viaticos:viat, diagnostico:diag, insumosTotal:insTotal,
+    costoSinImpuestos:costoBase, sumaMarkups:mk, isr, precioSinIVA:sinIVA, iva, precioConIVA:conIVA,
+    precioMO, descuentoMO, franquiciaMO, totalRepuestos:totalRep, advertencias,
+    totales:{ precio:precioMO+totalRep, descuento:descuentoMO+totalRep, franquicia:franquiciaMO+totalRep }
+  };
+}
+
+// ================================================================
+// FORM: EQUIPOS
+// ================================================================
+function addEquipoLine(data={}){
+  lineCounter++;
+  const tbody = document.getElementById("equipos-body");
+  const idx   = tbody.children.length+1;
+  const tr    = el("tr",{"data-id":"eq_"+lineCounter});
+  const tdNum = el("td",{class:"line-meta",text:String(idx)});
+  const inpCant= el("input",{type:"number",min:"1",step:"1",value:data.cantidad??1,class:"f-cantidad"});
+  const selEq  = el("select",{class:"f-equipo"});
+  selEq.appendChild(el("option",{value:"",text:"-- Seleccionar --"}));
+  CATALOGO.forEach(eq=>{ const o=el("option",{value:eq.nombre,text:eq.nombre}); if(data.equipo===eq.nombre)o.selected=true; selEq.appendChild(o); });
+  const selSrv = el("select",{class:"f-servicio"});
+  TIPOS_SERVICIO.forEach(s=>{ const o=el("option",{value:s,text:s}); if(data.tipoServicio===s)o.selected=true; selSrv.appendChild(o); });
+  const selTec = el("select",{class:"f-tecnico"});
+  selTec.appendChild(el("option",{value:"",text:"--"}));
+  TECNICOS.forEach(t=>{ const o=el("option",{value:t,text:t}); if(data.tecnico===t)o.selected=true; selTec.appendChild(o); });
+  const inpHrs = el("input",{type:"number",min:"0",step:"0.25",value:data.horas??"",class:"f-horas",placeholder:"0"});
+  const inpObs = el("input",{type:"text",value:data.observaciones??"",class:"f-obs",placeholder:"Opcional"});
+  const btnRm  = el("button",{class:"line-remove",text:"✕",onClick:()=>{tr.remove();renumberLines();recalcular();}});
+  [inpCant,selEq,selSrv,selTec,inpHrs,inpObs].forEach(inp=>{
+    inp.addEventListener("input",()=>{
+      if(inp===selEq){ const eq=CATALOGO.find(e=>e.nombre===selEq.value); if(eq&&(!inpHrs.value||inpHrs.value==="0"))inpHrs.value=eq.horasEstandar; }
+      recalcular();
+    });
+  });
+  tr.append(tdNum,makeCell(inpCant),makeCell(selEq),makeCell(selSrv),makeCell(selTec),makeCell(inpHrs),makeCell(inpObs),makeCell(btnRm));
+  tbody.appendChild(tr);
+}
+function renumberLines(){ Array.from(document.getElementById("equipos-body").children).forEach((tr,i)=>tr.firstChild.textContent=String(i+1)); }
+function getEquiposState(){ return Array.from(document.getElementById("equipos-body").children).map(tr=>({cantidad:tr.querySelector(".f-cantidad").value,equipo:tr.querySelector(".f-equipo").value,tipoServicio:tr.querySelector(".f-servicio").value,tecnico:tr.querySelector(".f-tecnico").value,horas:tr.querySelector(".f-horas").value,observaciones:tr.querySelector(".f-obs").value})); }
+
+// ================================================================
+// FORM: REPUESTOS
+// ================================================================
+function addRepuestoLine(data={}){
+  repCounter++;
+  const tbody = document.getElementById("repuestos-body");
+  const idx   = tbody.children.length+1;
+  const tr    = el("tr",{"data-id":"rep_"+repCounter});
+  const tdNum = el("td",{class:"line-meta",text:String(idx)});
+  const inpC  = el("input",{type:"number",min:"1",step:"1",value:data.cantidad??1,class:"r-cantidad"});
+  const inpN  = el("input",{type:"text",value:data.nombre??"",class:"r-nombre",placeholder:"Nombre del repuesto"});
+  const inpP  = el("input",{type:"number",min:"0",step:"0.01",value:data.precioUnitario??"",class:"r-precio",placeholder:"0.00"});
+  const tdTot = el("td",{class:"r-total small-text",text:fmtQ(0)});
+  const btnRm = el("button",{class:"line-remove",text:"✕",onClick:()=>{tr.remove();renumberRepuestos();recalcular();}});
+  const upd   = ()=>{ tdTot.textContent=fmtQ((Number(inpC.value)||0)*(Number(inpP.value)||0)); recalcular(); };
+  [inpC,inpN,inpP].forEach(i=>i.addEventListener("input",upd));
+  tr.append(tdNum,makeCell(inpC),makeCell(inpN),makeCell(inpP),tdTot,makeCell(btnRm));
+  tbody.appendChild(tr);
+}
+function renumberRepuestos(){ Array.from(document.getElementById("repuestos-body").children).forEach((tr,i)=>tr.firstChild.textContent=String(i+1)); }
+function getRepuestosState(){ return Array.from(document.getElementById("repuestos-body").children).map(tr=>({cantidad:tr.querySelector(".r-cantidad").value,nombre:tr.querySelector(".r-nombre").value,precioUnitario:tr.querySelector(".r-precio").value})).filter(r=>r.nombre.trim()||Number(r.precioUnitario)>0); }
+
+// ================================================================
+// RECALCULO
+// ================================================================
+function getFormState(){
+  return {
+    cliente:document.getElementById("inp-cliente").value,
+    correo:document.getElementById("inp-correo").value,
+    vendedor:document.getElementById("inp-vendedor").value,
+    jornada:document.getElementById("inp-jornada").value,
+    vigencia:document.getElementById("inp-vigencia").value,
+    fecha:document.getElementById("inp-fecha").value,
+    equipos:getEquiposState(), repuestos:getRepuestosState(),
+    viaticos:{alimentacion:document.getElementById("inp-alimentacion").value,gasolina:document.getElementById("inp-gasolina").value,flete:document.getElementById("inp-flete").value,parqueo:document.getElementById("inp-parqueo").value}
+  };
+}
+
+function recalcular(){
+  const state = getFormState();
+  const r = calcularCotizacion(state);
+
+  const wb = document.getElementById("warn-tope");
+  if(r.advertencias.length){
+    wb.style.display="block";
+    wb.innerHTML="<strong>⚠ Advertencia — precio relativo al equipo</strong><ul style='margin-top:8px;padding-left:16px;'>"+
+      r.advertencias.map(a=>`<li><b>${a.equipo}</b>: precio estimado <b>${fmtQ(a.precioCalculado)}</b> representa el <b>${a.pct.toFixed(0)}%</b> del valor del equipo (${fmtQ(a.valorEquipo)}). Tope sugerido 20%: ${fmtQ(a.tope)}</li>`).join("")+
+      "</ul><p style='margin-top:8px;font-size:.75rem;opacity:.7;'>Puedes continuar con el precio calculado, es solo una referencia.</p>";
+  } else { wb.style.display="none"; }
+
+  const grid = document.getElementById("summary-grid");
+  grid.innerHTML="";
+  [{label:"Mano de obra",value:r.manoObraDiurna+r.manoObraNocturna+r.manoObraFeriado},
+   {label:"Insumos",value:r.insumosTotal},
+   {label:"Viáticos + Admin.",value:r.viaticos+r.administrativo},
+   {label:"Diagnóstico",value:r.diagnostico},
+   {label:"Costo base",value:r.costoSinImpuestos},
+   {label:"Markups",value:r.sumaMarkups},
+   {label:"ISR (25%)",value:r.isr},
+   {label:"IVA (12%)",value:r.iva},
+   {label:"Subtotal M.O.",value:r.precioMO},
+   {label:"Repuestos (sin cargos)",value:r.totalRepuestos,highlight:true}
+  ].forEach(c=>{
+    const card=el("div",{class:"summary-card"+(c.highlight?" highlight":"")});
+    card.appendChild(el("div",{class:"label",text:c.label}));
+    card.appendChild(el("div",{class:"value",text:fmtQ(c.value)}));
+    grid.appendChild(card);
+  });
+
+  const tg = document.getElementById("tier-options"); tg.innerHTML="";
+  [{key:"precio",label:"Precio",note:"M.O. ×1.10 + Repuestos",value:r.totales.precio},
+   {key:"descuento",label:"Descuento",note:"Precio ×0.95 + Repuestos",value:r.totales.descuento},
+   {key:"franquicia",label:"Franquicia",note:"Precio ×0.90 + Repuestos",value:r.totales.franquicia}
+  ].forEach(t=>{
+    const c=el("div",{class:"tier-card"+(selectedTier===t.key?" selected":""),onClick:()=>{selectedTier=t.key;recalcular();}});
+    c.appendChild(el("div",{class:"tname",text:t.label}));
+    c.appendChild(el("div",{class:"tval",text:fmtQ(t.value)}));
+    c.appendChild(el("div",{class:"small-text",style:"margin-top:4px;font-size:.65rem;",text:t.note}));
+    tg.appendChild(c);
+  });
+  return r;
+}
+
+// ================================================================
+// GUARDAR
+// ================================================================
+async function guardarCotizacion(){
+  const state = getFormState();
+  if(!state.cliente.trim()){ showToast("Ingresa el nombre del cliente",true); return; }
+  const eqv = state.equipos.filter(e=>e.equipo&&e.tecnico&&Number(e.horas)>0);
+  if(!eqv.length){ showToast("Agrega al menos un equipo con técnico y horas",true); return; }
+
+  const r    = calcularCotizacion(state);
+  const fecha= state.fecha||todayISO();
+  const cot  = {
+    id: nextCotId(),
+    fecha, vence:addDays(fecha,Number(state.vigencia)||30),
+    cliente:state.cliente, correo:state.correo, vendedor:state.vendedor,
+    jornada:state.jornada, equipos:eqv, repuestos:state.repuestos,
+    viaticos:state.viaticos, calculo:r,
+    tipoPrecio:selectedTier, total:r.totales[selectedTier],
+    estadoComercial:"Pendiente", estadoOperativo:"Pendiente",
+    creadoPor: currentUser?.email||"desconocido",
+    creadoEn: new Date().toISOString()
+  };
+
+  await saveCotizacion(cot);
+  showToast("Cotización "+cot.id+" guardada ✓");
+  if(state.correo?.trim()) enviarCorreo(cot,r);
+  resetForm();
+}
+
+function enviarCorreo(cot,r){
+  const sep="----------------------------------------";
+  const eqLines = cot.equipos.map((e,i)=>`  ${i+1}. ${e.equipo} (x${e.cantidad}) - ${e.tipoServicio} - ${e.tecnico} - ${e.horas} hrs${e.observaciones?" - "+e.observaciones:""}`).join("\n");
+  const repLines= cot.repuestos.length ? "\nRepuestos (sin recargos):\n"+cot.repuestos.map((rr,i)=>`  ${i+1}. ${rr.nombre} x${rr.cantidad} @ GTQ ${Number(rr.precioUnitario).toFixed(2)}`).join("\n") : "";
+  const v=cot.viaticos;
+  const vLines=[v.alimentacion>0?`  Alimentacion: ${v.alimentacion} und.`:"",v.gasolina>0?`  Gasolina: ${v.gasolina} km`:"",v.flete>0?`  Flete: ${v.flete} km`:"",v.parqueo>0?`  Parqueo: ${v.parqueo} und.`:""].filter(Boolean).join("\n");
+  const body=[`Estimado(a) cliente,`,``,`Le compartimos el resumen de la cotizacion ${cot.id} emitida por ATG.`,``,sep,`COTIZACION ${cot.id}`,sep,`Fecha:    ${cot.fecha}`,`Vigencia: ${cot.vence}`,`Vendedor: ${cot.vendedor||"-"}`,`Jornada:  ${cot.jornada}`,``,`EQUIPOS:`,eqLines,repLines||"",vLines?`\nViaticos:\n${vLines}`:"",``,sep,`DETALLE DE PRECIO`,sep,`Mano de obra:      ${fmtQ(r.manoObraDiurna+r.manoObraNocturna+r.manoObraFeriado)}`,`Insumos:           ${fmtQ(r.insumosTotal)}`,`Viaticos+Admin.:   ${fmtQ(r.viaticos+r.administrativo)}`,`Diagnostico:       ${fmtQ(r.diagnostico)}`,`Markups:           ${fmtQ(r.sumaMarkups)}`,`ISR (25%):         ${fmtQ(r.isr)}`,`IVA (12%):         ${fmtQ(r.iva)}`,`Subtotal M.O.:     ${fmtQ(r.precioMO)}`,cot.repuestos.length?`Repuestos:         ${fmtQ(r.totalRepuestos)}`:"",``,`Tipo de precio:    ${capitalize(cot.tipoPrecio)}`,`TOTAL COTIZADO:    ${fmtQ(cot.total)}`,``,sep,`Cotizacion valida hasta el ${cot.vence}.`,``,`Atentamente,`,`${cot.vendedor||"Equipo ATG"}`,`Cotizador Servicios ATG v2.0`].join("\n");
+  window.location.href=`mailto:${encodeURIComponent(cot.correo)}?subject=${encodeURIComponent("Cotizacion "+cot.id+" - "+cot.cliente+" - ATG")}&body=${encodeURIComponent(body)}`;
+}
+
+function resetForm(){
+  ["inp-cliente","inp-correo","inp-vendedor"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("inp-jornada").value="Diurno";
+  document.getElementById("inp-vigencia").value="30";
+  document.getElementById("inp-fecha").value=todayISO();
+  ["inp-alimentacion","inp-gasolina","inp-flete","inp-parqueo"].forEach(id=>document.getElementById(id).value="0");
+  document.getElementById("equipos-body").innerHTML="";
+  document.getElementById("repuestos-body").innerHTML="";
+  lineCounter=0; repCounter=0;
+  addEquipoLine(); addRepuestoLine();
+  selectedTier="precio"; recalcular();
+}
+
+// ================================================================
+// HISTORICO
+// ================================================================
+function renderHistorico(){
+  const tbody = document.getElementById("historico-body");
+  const empty = document.getElementById("historico-empty");
+  tbody.innerHTML="";
+  const fc=(document.getElementById("filter-cliente").value||"").toLowerCase();
+  const fe=document.getElementById("filter-estado").value;
+  const filtered=HISTORICO.filter(c=>{
+    if(fc&&!c.cliente.toLowerCase().includes(fc)) return false;
+    if(fe&&c.estadoComercial!==fe) return false;
+    return true;
+  });
+  empty.style.display=filtered.length===0?"block":"none";
+  filtered.forEach(cot=>{
+    const tr=el("tr");
+    tr.appendChild(el("td",{},[el("span",{class:"id-pill",text:cot.id})]));
+    tr.appendChild(el("td",{text:cot.fecha}));
+    tr.appendChild(el("td",{text:cot.cliente}));
+    tr.appendChild(el("td",{text:cot.vendedor||"-"}));
+    tr.appendChild(el("td",{text:cot.creadoPor||"-",class:"small-text"}));
+    tr.appendChild(el("td",{text:capitalize(cot.tipoPrecio)}));
+    tr.appendChild(el("td",{text:fmtQ(cot.total)}));
+    const tdE=el("td");
+    const sel=el("select",{class:"status-select"});
+    ESTADOS.forEach(s=>{const o=el("option",{value:s,text:s});if(cot.estadoComercial===s)o.selected=true;sel.appendChild(o);});
+    sel.addEventListener("change",()=>{ updateEstado(cot._docId,"estadoComercial",sel.value); showToast("Estado actualizado"); });
+    tdE.appendChild(sel); tr.appendChild(tdE);
+    tr.appendChild(el("td",{text:cot.vence}));
+    const tdA=el("td");
+    tdA.appendChild(el("button",{class:"btn btn-secondary btn-sm",text:"Detalle",onClick:()=>abrirDetalle(cot)}));
+    const btnDel=el("button",{class:"btn btn-danger btn-sm",style:"margin-left:6px;",text:"Eliminar"});
+    btnDel.onclick=()=>{ if(confirm("¿Eliminar "+cot.id+"?")) deleteCotizacion(cot._docId); };
+    tdA.appendChild(btnDel); tr.appendChild(tdA);
+    tbody.appendChild(tr);
+  });
+}
+
+function abrirDetalle(cot){
+  const ov=document.getElementById("modal-overlay");
+  const mc=document.getElementById("modal-content");
+  mc.innerHTML="";
+  mc.appendChild(el("button",{class:"modal-close",text:"✕",onClick:()=>ov.classList.remove("show")}));
+  mc.appendChild(el("h3",{text:cot.id+" · "+cot.cliente}));
+  const info=el("p",{class:"small-text",style:"margin-bottom:10px;"});
+  info.innerHTML=`Fecha: ${cot.fecha} &nbsp;|&nbsp; Vence: ${cot.vence} &nbsp;|&nbsp; Vendedor: ${cot.vendedor||"-"} &nbsp;|&nbsp; Creado por: ${cot.creadoPor||"-"} &nbsp;|&nbsp; Jornada: ${cot.jornada}`;
+  mc.appendChild(info);
+  const tEq=el("table",{class:"data-table",style:"margin-bottom:14px;"});
+  tEq.appendChild(el("thead",{},[el("tr",{},["Cant.","Equipo","Servicio","Técnico","Horas","Obs."].map(h=>el("th",{text:h})))]));
+  const tbEq=el("tbody");
+  cot.equipos.forEach(e=>tbEq.appendChild(el("tr",{},[el("td",{text:String(e.cantidad)}),el("td",{text:e.equipo}),el("td",{text:e.tipoServicio}),el("td",{text:e.tecnico}),el("td",{text:String(e.horas)}),el("td",{text:e.observaciones||"-"})])));
+  tEq.appendChild(tbEq); mc.appendChild(tEq);
+  if(cot.repuestos?.length){
+    mc.appendChild(el("p",{class:"small-text",style:"margin-bottom:6px;font-weight:700;",text:"Repuestos (sin recargos):"}));
+    const tR=el("table",{class:"data-table",style:"margin-bottom:14px;"});
+    tR.appendChild(el("thead",{},[el("tr",{},["Cant.","Repuesto","P. Unit.","Total"].map(h=>el("th",{text:h})))]));
+    const tbR=el("tbody");
+    cot.repuestos.forEach(rr=>tbR.appendChild(el("tr",{},[el("td",{text:String(rr.cantidad)}),el("td",{text:rr.nombre}),el("td",{text:fmtQ(Number(rr.precioUnitario)||0)}),el("td",{text:fmtQ((Number(rr.cantidad)||0)*(Number(rr.precioUnitario)||0))})])));
+    tR.appendChild(tbR); mc.appendChild(tR);
+  }
+  const rc=cot.calculo;
+  const sg=el("div",{class:"summary-grid",style:"margin-bottom:14px;"});
+  [{label:"Costo base",value:rc.costoSinImpuestos},{label:"Markups",value:rc.sumaMarkups},{label:"ISR",value:rc.isr},{label:"IVA",value:rc.iva},{label:"M.O. Precio",value:rc.precioMO},{label:"M.O. Descuento",value:rc.descuentoMO},{label:"M.O. Franquicia",value:rc.franquiciaMO},{label:"Repuestos",value:rc.totalRepuestos},{label:"TOTAL ("+capitalize(cot.tipoPrecio)+")",value:cot.total,highlight:true}].forEach(c=>{
+    const card=el("div",{class:"summary-card"+(c.highlight?" highlight":"")});
+    card.appendChild(el("div",{class:"label",text:c.label}));
+    card.appendChild(el("div",{class:"value",text:fmtQ(c.value)}));
+    sg.appendChild(card);
+  });
+  mc.appendChild(sg);
+  ov.classList.add("show");
+}
+
+function exportarJSON(){
+  const blob=new Blob([JSON.stringify(HISTORICO,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download="historico_cotizaciones.json"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ================================================================
+// CATALOGO UI
+// ================================================================
+function renderCatalogo(){
+  // Insumos
+  const ib=document.getElementById("insumos-cfg-body"); ib.innerHTML="";
+  ["Baja","Media","Alta"].forEach(comp=>{
+    const tr=el("tr");
+    tr.appendChild(el("td",{text:comp}));
+    const td=el("td");
+    const inp=el("input",{type:"number",min:"0",step:"10",value:INSUMOS_CFG[comp]??0});
+    inp.addEventListener("input",()=>{ INSUMOS_CFG[comp]=Number(inp.value)||0; saveInsumosDB(); recalcular(); });
+    td.appendChild(inp); tr.appendChild(td); ib.appendChild(tr);
+  });
+  // Catalogo
+  const cb=document.getElementById("catalogo-body"); cb.innerHTML="";
+  CATALOGO.forEach(eq=>{
+    const tr=el("tr");
+    tr.appendChild(el("td",{text:eq.nombre}));
+    const selT=el("select"); ["Caliente","Frio"].forEach(t=>{const o=el("option",{value:t,text:t==="Frio"?"Frío":"Caliente"});if(eq.tipo===t)o.selected=true;selT.appendChild(o);}); selT.addEventListener("change",()=>{eq.tipo=selT.value;saveCatalogoDB();}); tr.appendChild(makeCell(selT));
+    const inpV=el("input",{type:"number",min:"0",step:"50",value:eq.valor}); inpV.addEventListener("input",()=>{eq.valor=Number(inpV.value)||0;saveCatalogoDB();}); tr.appendChild(makeCell(inpV));
+    const selC=el("select"); ["Baja","Media","Alta"].forEach(c=>{const o=el("option",{value:c,text:c});if(eq.complejidad===c)o.selected=true;selC.appendChild(o);}); selC.addEventListener("change",()=>{eq.complejidad=selC.value;saveCatalogoDB();recalcular();}); tr.appendChild(makeCell(selC));
+    const inpF=el("input",{type:"number",min:"0.1",step:"0.05",value:eq.factor}); inpF.addEventListener("input",()=>{eq.factor=Number(inpF.value)||1;saveCatalogoDB();recalcular();}); tr.appendChild(makeCell(inpF));
+    const inpH=el("input",{type:"number",min:"0",step:"0.25",value:eq.horasEstandar}); inpH.addEventListener("input",()=>{eq.horasEstandar=Number(inpH.value)||0;saveCatalogoDB();}); tr.appendChild(makeCell(inpH));
+    cb.appendChild(tr);
+  });
+}
+
+// ================================================================
+// TABS
+// ================================================================
+function setupTabs(){
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("view-"+btn.dataset.view).classList.add("active");
+      if(btn.dataset.view==="historico") renderHistorico();
+      if(btn.dataset.view==="catalogo")  renderCatalogo();
+    });
+  });
+}
+
+// ================================================================
+// AUTH
+// ================================================================
+document.getElementById("btn-login").addEventListener("click", async ()=>{
+  const email = document.getElementById("login-email").value.trim();
+  const pass  = document.getElementById("login-pass").value;
+  const errEl = document.getElementById("login-error");
+  errEl.style.display="none";
+  if(!email||!pass){ errEl.textContent="Ingresa correo y contraseña."; errEl.style.display="block"; return; }
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e){
+    errEl.textContent = e.code==="auth/invalid-credential"||e.code==="auth/wrong-password"||e.code==="auth/user-not-found"
+      ? "Correo o contraseña incorrectos."
+      : "Error: "+e.message;
+    errEl.style.display="block";
+  }
+});
+document.getElementById("login-email").addEventListener("keydown", e=>{ if(e.key==="Enter") document.getElementById("login-pass").focus(); });
+document.getElementById("login-pass").addEventListener("keydown",  e=>{ if(e.key==="Enter") document.getElementById("btn-login").click(); });
+
+document.getElementById("btn-logout").addEventListener("click", async ()=>{
+  if(unsubHistorico){ unsubHistorico(); unsubHistorico=null; }
+  await signOut(auth);
+});
+
+onAuthStateChanged(auth, async user=>{
+  if(user){
+    currentUser=user;
+    document.getElementById("login-screen").style.display="none";
+    document.getElementById("app-screen").style.display="block";
+    document.getElementById("user-pill").textContent=user.email;
+
+    // Load shared config from Firestore
+    CATALOGO    = await loadCatalogoFromDB();
+    INSUMOS_CFG = await loadInsumosFromDB();
+
+    // Setup form
+    document.getElementById("inp-fecha").value=todayISO();
+    document.getElementById("inp-vendedor").value=user.email.split("@")[0];
+    addEquipoLine(); addRepuestoLine();
+
+    // Wire up events
+    document.getElementById("btn-add-equipo").addEventListener("click",  ()=>addEquipoLine());
+    document.getElementById("btn-add-repuesto").addEventListener("click", ()=>addRepuestoLine());
+    document.getElementById("btn-guardar").addEventListener("click",      guardarCotizacion);
+    document.getElementById("btn-reset").addEventListener("click",        resetForm);
+    ["inp-alimentacion","inp-gasolina","inp-flete","inp-parqueo","inp-jornada"].forEach(id=>document.getElementById(id).addEventListener("input",recalcular));
+    document.getElementById("filter-cliente").addEventListener("input",   renderHistorico);
+    document.getElementById("filter-estado").addEventListener("change",   renderHistorico);
+    document.getElementById("btn-export-json").addEventListener("click",  exportarJSON);
+    document.getElementById("btn-restaurar-catalogo").addEventListener("click",async ()=>{
+      if(confirm("¿Restaurar catálogo a valores por defecto?")){
+        CATALOGO=JSON.parse(JSON.stringify(CATALOGO_DEFAULT));
+        await saveCatalogoDB(); renderCatalogo(); showToast("Catálogo restaurado");
+      }
+    });
+    document.getElementById("btn-restaurar-insumos").addEventListener("click",async ()=>{
+      INSUMOS_CFG={...TARIFAS.insumosPorComplejidad};
+      await saveInsumosDB(); renderCatalogo(); showToast("Insumos restaurados");
+    });
+    document.getElementById("modal-overlay").addEventListener("click",e=>{ if(e.target.id==="modal-overlay")e.target.classList.remove("show"); });
+
+    setupTabs();
+    recalcular();
+    subscribeHistorico(); // real-time listener
+  } else {
+    currentUser=null;
+    document.getElementById("login-screen").style.display="flex";
+    document.getElementById("app-screen").style.display="none";
+  }
+});
+</script>
+</body>
+</html>
