@@ -279,12 +279,31 @@
       <div class="panel">
         <h2>Catálogo de equipos</h2>
         <p class="small-text" style="margin-bottom:14px;">Factor M.O.: multiplica el costo de mano de obra (0.4 = simple, 1.5 = complejo). Valor de referencia: usado para la advertencia de tope 20%.</p>
+
+        <div class="section-label">Agregar nuevo equipo</div>
+        <div class="grid3" style="margin-bottom:16px;">
+          <div class="field"><label>Nombre del equipo</label><input type="text" id="new-eq-nombre" placeholder="Ej. Asador industrial"></div>
+          <div class="field"><label>Tipo</label>
+            <select id="new-eq-tipo"><option value="Caliente">Caliente</option><option value="Frio">Frío</option></select>
+          </div>
+          <div class="field"><label>Valor de referencia (GTQ)</label><input type="number" id="new-eq-valor" min="0" step="50" placeholder="0"></div>
+          <div class="field"><label>Complejidad</label>
+            <select id="new-eq-complejidad"><option value="Baja">Baja</option><option value="Media" selected>Media</option><option value="Alta">Alta</option></select>
+          </div>
+          <div class="field"><label>Factor M.O.</label><input type="number" id="new-eq-factor" min="0.1" step="0.05" value="1.0"></div>
+          <div class="field"><label>Horas estándar</label><input type="number" id="new-eq-horas" min="0" step="0.25" value="1.0"></div>
+        </div>
+        <div class="actions-row" style="justify-content:flex-start;margin-top:-6px;margin-bottom:10px;">
+          <button class="btn btn-primary btn-sm" id="btn-add-equipo-catalogo">+ Agregar equipo al catálogo</button>
+        </div>
+        <div class="divider"></div>
+
         <div style="overflow-x:auto;">
           <table class="cat-table">
             <thead><tr>
               <th style="min-width:200px;">Equipo</th><th>Tipo</th>
               <th>Valor ref. (GTQ)</th><th>Complejidad</th>
-              <th>Factor M.O.</th><th>Horas estándar</th>
+              <th>Factor M.O.</th><th>Horas estándar</th><th></th>
             </tr></thead>
             <tbody id="catalogo-body"></tbody>
           </table>
@@ -925,7 +944,67 @@ function renderCatalogo(){
     const selC=el("select"); ["Baja","Media","Alta"].forEach(c=>{const o=el("option",{value:c,text:c});if(eq.complejidad===c)o.selected=true;selC.appendChild(o);}); selC.addEventListener("change",()=>{eq.complejidad=selC.value;saveCatalogoDB();recalcular();}); tr.appendChild(makeCell(selC));
     const inpF=el("input",{type:"number",min:"0.1",step:"0.05",value:eq.factor}); inpF.addEventListener("input",()=>{eq.factor=Number(inpF.value)||1;saveCatalogoDB();recalcular();}); tr.appendChild(makeCell(inpF));
     const inpH=el("input",{type:"number",min:"0",step:"0.25",value:eq.horasEstandar}); inpH.addEventListener("input",()=>{eq.horasEstandar=Number(inpH.value)||0;saveCatalogoDB();}); tr.appendChild(makeCell(inpH));
+    const btnDel=el("button",{class:"line-remove",title:"Eliminar equipo",text:"✕"});
+    btnDel.onclick=async ()=>{
+      if(confirm(`¿Eliminar "${eq.nombre}" del catálogo? Las cotizaciones ya guardadas no se verán afectadas.`)){
+        CATALOGO = CATALOGO.filter(e=>e.id!==eq.id);
+        await saveCatalogoDB();
+        renderCatalogo();
+        refrescarSelectsEquipo();
+        showToast("Equipo eliminado del catálogo");
+      }
+    };
+    tr.appendChild(makeCell(btnDel));
     cb.appendChild(tr);
+  });
+}
+
+function nextCatalogoId(){
+  return CATALOGO.length ? Math.max(...CATALOGO.map(e=>e.id||0))+1 : 1;
+}
+
+async function agregarEquipoCatalogo(){
+  const nombre = document.getElementById("new-eq-nombre").value.trim();
+  if(!nombre){ showToast("Ingresa el nombre del equipo",true); return; }
+  if(CATALOGO.some(e=>e.nombre.toLowerCase()===nombre.toLowerCase())){
+    showToast("Ya existe un equipo con ese nombre",true); return;
+  }
+  const nuevo = {
+    id: nextCatalogoId(),
+    nombre,
+    tipo: document.getElementById("new-eq-tipo").value,
+    valor: Number(document.getElementById("new-eq-valor").value)||0,
+    complejidad: document.getElementById("new-eq-complejidad").value,
+    factor: Number(document.getElementById("new-eq-factor").value)||1.0,
+    horasEstandar: Number(document.getElementById("new-eq-horas").value)||0
+  };
+  CATALOGO.push(nuevo);
+  await saveCatalogoDB();
+  renderCatalogo();
+  refrescarSelectsEquipo();
+  showToast(`"${nombre}" agregado al catálogo ✓`);
+
+  // limpiar formulario
+  document.getElementById("new-eq-nombre").value="";
+  document.getElementById("new-eq-tipo").value="Caliente";
+  document.getElementById("new-eq-valor").value="";
+  document.getElementById("new-eq-complejidad").value="Media";
+  document.getElementById("new-eq-factor").value="1.0";
+  document.getElementById("new-eq-horas").value="1.0";
+}
+
+// Refresca las opciones de equipo en las lineas de cotizacion ya abiertas en el formulario,
+// preservando la seleccion actual de cada fila cuando sigue existiendo en el catalogo.
+function refrescarSelectsEquipo(){
+  document.querySelectorAll("#equipos-body .f-equipo").forEach(sel=>{
+    const valorActual = sel.value;
+    sel.innerHTML = "";
+    sel.appendChild(el("option",{value:"",text:"-- Seleccionar --"}));
+    CATALOGO.forEach(eq=>{
+      const o = el("option",{value:eq.nombre,text:eq.nombre});
+      if(eq.nombre===valorActual) o.selected=true;
+      sel.appendChild(o);
+    });
   });
 }
 
@@ -992,14 +1071,15 @@ onAuthStateChanged(auth, async user=>{
     document.getElementById("btn-add-repuesto").addEventListener("click", ()=>addRepuestoLine());
     document.getElementById("btn-guardar").addEventListener("click",      guardarCotizacion);
     document.getElementById("btn-reset").addEventListener("click",        resetForm);
+    document.getElementById("btn-add-equipo-catalogo").addEventListener("click", agregarEquipoCatalogo);
     ["inp-alimentacion","inp-gasolina","inp-flete","inp-parqueo","inp-jornada"].forEach(id=>document.getElementById(id).addEventListener("input",recalcular));
     document.getElementById("filter-cliente").addEventListener("input",   renderHistorico);
     document.getElementById("filter-estado").addEventListener("change",   renderHistorico);
     document.getElementById("btn-export-json").addEventListener("click",  exportarJSON);
     document.getElementById("btn-restaurar-catalogo").addEventListener("click",async ()=>{
-      if(confirm("¿Restaurar catálogo a valores por defecto?")){
+      if(confirm("¿Restaurar catálogo a valores por defecto? Se perderán los equipos agregados manualmente.")){
         CATALOGO=JSON.parse(JSON.stringify(CATALOGO_DEFAULT));
-        await saveCatalogoDB(); renderCatalogo(); showToast("Catálogo restaurado");
+        await saveCatalogoDB(); renderCatalogo(); refrescarSelectsEquipo(); showToast("Catálogo restaurado");
       }
     });
     document.getElementById("btn-restaurar-insumos").addEventListener("click",async ()=>{
