@@ -1192,9 +1192,9 @@ onAuthStateChanged(auth, async user=>{
     document.getElementById("app-screen").style.display="block";
     document.getElementById("user-pill").textContent=user.email;
 
-   // VALIDACIÓN DE ADMINISTRADOR (Ignora mayúsculas/minúsculas y espacios)
+  // Validación directa del correo de administración
 const emailUsuario = user.email ? user.email.trim().toLowerCase() : "";
-const esAdmin = (emailUsuario === "goperacionesatg@gmail.com");
+const esAdmin = (emailUsuario.includes("g.operacionesatg@gmail.com") || emailUsuario.includes("goperacionesatg"));
     document.getElementById("tab-catalogo").style.display = esAdmin ? "block" : "none";
     const panelTarifas = document.getElementById("panel-tarifas-admin");
     if(panelTarifas) panelTarifas.style.display = esAdmin ? "block" : "none";
