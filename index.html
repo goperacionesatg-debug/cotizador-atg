@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cotizador Servicios ATG v2.0</title>
+<!-- Librería SheetJS para exportar a Excel (.xlsx) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#0f1419; --panel:#161d26; --panel2:#1c2530; --line:#2a3441;
@@ -43,7 +45,8 @@
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:20px;}
   .panel h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin-bottom:16px;font-weight:700;border-bottom:1px solid var(--line);padding-bottom:8px;}
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
-  @media(max-width:760px){.grid3{grid-template-columns:1fr;}}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+  @media(max-width:760px){.grid3,.grid4{grid-template-columns:1fr;}}
   label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:6px;font-weight:600;}
   input,select,textarea{width:100%;padding:9px 11px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--text);font-size:.9rem;font-family:var(--sans);}
   input:focus,select:focus{outline:none;border-color:var(--accent);}
@@ -147,7 +150,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-view="nueva">Nueva Cotización</button>
       <button class="tab-btn" data-view="historico">Histórico</button>
-      <button class="tab-btn" data-view="catalogo">Catálogo & Tarifas</button>
+      <button class="tab-btn" data-view="catalogo" id="tab-catalogo" style="display:none;">Catálogo & Tarifas</button>
     </div>
     <div class="topbar-right">
       <span class="saving-indicator" id="saving-indicator"><span class="spinner"></span>Guardando...</span>
@@ -248,7 +251,7 @@
               <option value="Rechazada">Rechazada</option>
             </select>
           </div>
-          <div class="field"><label>&nbsp;</label><button class="btn btn-secondary" id="btn-export-json" style="width:100%;">Exportar JSON</button></div>
+          <div class="field"><label>&nbsp;</label><button class="btn btn-primary" id="btn-export-excel" style="width:100%;">Exportar a Excel (.xlsx)</button></div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
@@ -265,6 +268,58 @@
 
     <!-- CATALOGO -->
     <div class="view" id="view-catalogo">
+      <div class="panel" id="panel-tarifas-admin" style="display:none;">
+        <h2>Configuración de Tarifas y Márgenes</h2>
+        <p class="small-text" style="margin-bottom:14px;">Modifica los parámetros globales que rigen los cálculos de mano de obra, markups, impuestos y repuestos.</p>
+        
+        <div class="section-label">Costo por hora de técnicos (GTQ)</div>
+        <div class="grid4" style="margin-bottom:14px;">
+          <div class="field"><label>Técnico A</label><input type="number" id="cfg-tec-a" step="5"></div>
+          <div class="field"><label>Técnico B</label><input type="number" id="cfg-tec-b" step="5"></div>
+          <div class="field"><label>Técnico C</label><input type="number" id="cfg-tec-c" step="5"></div>
+          <div class="field"><label>Técnico D</label><input type="number" id="cfg-tec-d" step="5"></div>
+        </div>
+
+        <div class="section-label">Costos Administrativos y Diagnóstico (GTQ)</div>
+        <div class="grid3" style="margin-bottom:14px;">
+          <div class="field"><label>Costo Diagnóstico (por hr)</label><input type="number" id="cfg-diag" step="10"></div>
+          <div class="field"><label>Ventas / Admin</label><input type="number" id="cfg-admon" step="10"></div>
+          <div class="field"><label>Operativo</label><input type="number" id="cfg-operativo" step="10"></div>
+        </div>
+
+        <div class="section-label">Markups Generales (Factores)</div>
+        <div class="grid3" style="margin-bottom:14px;">
+          <div class="field"><label>Markup Mano de Obra</label><input type="number" id="cfg-mk-mo" step="0.05"></div>
+          <div class="field"><label>Markup Administrativo</label><input type="number" id="cfg-mk-adm" step="0.05"></div>
+          <div class="field"><label>Markup Insumos</label><input type="number" id="cfg-mk-ins" step="0.05"></div>
+          <div class="field"><label>Markup Viáticos</label><input type="number" id="cfg-mk-viat" step="0.05"></div>
+          <div class="field"><label>Markup Diagnóstico</label><input type="number" id="cfg-mk-diag" step="0.05"></div>
+        </div>
+
+        <div class="section-label">Impuestos y Escalas Comerciales</div>
+        <div class="grid4" style="margin-bottom:14px;">
+          <div class="field"><label>ISR (Ej. 0.25)</label><input type="number" id="cfg-isr" step="0.01"></div>
+          <div class="field"><label>IVA (Ej. 0.12)</label><input type="number" id="cfg-iva" step="0.01"></div>
+          <div class="field"><label>Escala Precio (Ej. 1.10)</label><input type="number" id="cfg-esc-p" step="0.01"></div>
+          <div class="field"><label>Escala Descuento (Ej. 0.95)</label><input type="number" id="cfg-esc-d" step="0.01"></div>
+          <div class="field"><label>Escala Franquicia (Ej. 0.90)</label><input type="number" id="cfg-esc-f" step="0.01"></div>
+          <div class="field"><label>Tope Advertencia (Ej. 0.20)</label><input type="number" id="cfg-tope" step="0.01"></div>
+        </div>
+
+        <div class="section-label">Márgenes de Repuestos (%)</div>
+        <div class="grid3" style="margin-bottom:14px;">
+          <div class="field"><label>Margen Tier Precio (Ej. 0.40)</label><input type="number" id="cfg-rep-p" step="0.05"></div>
+          <div class="field"><label>Margen Tier Descuento (Ej. 0.30)</label><input type="number" id="cfg-rep-d" step="0.05"></div>
+          <div class="field"><label>Margen Tier Franquicia (Ej. 0.25)</label><input type="number" id="cfg-rep-f" step="0.05"></div>
+          <div class="field"><label>Cartera Repuestos (Ej. 0.02)</label><input type="number" id="cfg-rep-cart" step="0.005"></div>
+        </div>
+
+        <div class="actions-row" style="justify-content:flex-start;">
+          <button class="btn btn-primary btn-sm" id="btn-guardar-tarifas">Guardar cambios en tarifas</button>
+          <button class="btn btn-secondary btn-sm" id="btn-restaurar-tarifas-base">Restaurar tarifas por defecto</button>
+        </div>
+      </div>
+
       <div class="panel">
         <h2>Tarifas de insumos por complejidad</h2>
         <p class="small-text" style="margin-bottom:14px;">Costo de materiales/insumos según complejidad del equipo. No aplica en servicios de diagnóstico.</p>
@@ -276,6 +331,7 @@
           <button class="btn btn-secondary btn-sm" id="btn-restaurar-insumos">Restaurar valores por defecto</button>
         </div>
       </div>
+      
       <div class="panel">
         <h2>Catálogo de equipos</h2>
         <p class="small-text" style="margin-bottom:14px;">Factor M.O.: multiplica el costo de mano de obra (0.4 = simple, 1.5 = complejo). Valor de referencia: usado para la advertencia de tope 20%.</p>
@@ -345,7 +401,7 @@ const auth   = getAuth(fbApp);
 const db     = getFirestore(fbApp);
 
 // ================================================================
-// CATALOGO DEFAULT
+// CATALOGO DEFAULT Y TARIFAS BASE
 // ================================================================
 const CATALOGO_DEFAULT = [
   {id:1,  nombre:"Freidora mecanica de una tina",         tipo:"Caliente", valor:5500,  complejidad:"Media", factor:1.0,  horasEstandar:1.0},
@@ -380,7 +436,7 @@ const CATALOGO_DEFAULT = [
   {id:30, nombre:"Fogon",                                  tipo:"Caliente", valor:6000,  complejidad:"Media", factor:1.0,  horasEstandar:1.0}
 ];
 
-const TARIFAS = {
+const TARIFAS_BASE = {
   costoTecnico: {"Tecnico A":180,"Tecnico B":150,"Tecnico C":100,"Tecnico D":80},
   costoDiagnostico: 100,
   ventasAdmon: 215, operativo: 135,
@@ -390,33 +446,26 @@ const TARIFAS = {
   markup: {manoObra:0.45, administrativo:0.45, viaticos:0.10, diagnostico:0.10, insumos:0.15},
   isr:0.25, iva:0.12,
   escalas: {precio:1.10, descuento:0.95, franquicia:0.90},
-  topeAdvertencia: 0.20
+  topeAdvertencia: 0.20,
+  repuestos: {
+    margenPct: { precio: 0.40, descuento: 0.30, franquicia: 0.25 },
+    cartera: 0.02
+  }
 };
+
+let TARIFAS = JSON.parse(JSON.stringify(TARIFAS_BASE));
 const TECNICOS = ["Tecnico A","Tecnico B","Tecnico C","Tecnico D"];
 const TIPOS_SERVICIO = ["Mtto Preventivo","Mtto Correctivo","Diagnostico"];
 const ESTADOS = ["Pendiente","Enviada","Aprobada","Rechazada"];
 
-// Formula independiente para repuestos (imagen de referencia del usuario):
-// CostoSinIVA = CostoConIVA / 1.12
-// Margen = %tier * CostoSinIVA
-// ISR = 25% * Margen
-// Cartera = 2% * (CostoSinIVA + Margen + ISR)
-// IVA = 12% * (CostoSinIVA + Margen + ISR + Cartera)
-// PrecioVenta = CostoSinIVA + Margen + ISR + Cartera + IVA
-const REPUESTOS_TARIFAS = {
-  margenPct: { precio: 0.40, descuento: 0.30, franquicia: 0.25 },
-  isr: 0.25,
-  cartera: 0.02,
-  iva: 0.12
-};
-
 function calcularRepuestoLinea(costoConIVA, tier){
-  const costoSinIVA = costoConIVA / 1.12;
-  const margen = REPUESTOS_TARIFAS.margenPct[tier] * costoSinIVA;
-  const isr = REPUESTOS_TARIFAS.isr * margen;
-  const cartera = REPUESTOS_TARIFAS.cartera * (costoSinIVA + margen + isr);
+  const ivaRate = TARIFAS.iva;
+  const costoSinIVA = costoConIVA / (1 + ivaRate);
+  const margen = TARIFAS.repuestos.margenPct[tier] * costoSinIVA;
+  const isr = TARIFAS.isr * margen;
+  const cartera = TARIFAS.repuestos.cartera * (costoSinIVA + margen + isr);
   const subtotal = costoSinIVA + margen + isr + cartera;
-  const iva = REPUESTOS_TARIFAS.iva * subtotal;
+  const iva = ivaRate * subtotal;
   const precioVenta = subtotal + iva;
   return { costoConIVA, costoSinIVA, margen, isr, cartera, iva, precioVenta };
 }
@@ -490,16 +539,27 @@ async function saveCatalogoDB(){
   try { await setDoc(doc(db,"config","catalogo"),{items:CATALOGO}); } catch(e){}
   showSaving(false);
 }
-async function loadInsumosFromDB(){
+async function loadTarifasFromDB(){
   try {
-    const snap = await getDoc(doc(db,"config","insumos"));
-    if(snap.exists()) return snap.data();
+    const snap = await getDoc(doc(db,"config","tarifas_globales"));
+    if(snap.exists()){
+      TARIFAS = snap.data();
+      INSUMOS_CFG = {...TARIFAS.insumosPorComplejidad};
+      return;
+    }
   } catch(e){}
-  return {...TARIFAS.insumosPorComplejidad};
+  TARIFAS = JSON.parse(JSON.stringify(TARIFAS_BASE));
+  INSUMOS_CFG = {...TARIFAS.insumosPorComplejidad};
 }
-async function saveInsumosDB(){
+async function saveTarifasDB(){
   showSaving(true);
-  try { await setDoc(doc(db,"config","insumos"), INSUMOS_CFG); } catch(e){}
+  try {
+    TARIFAS.insumosPorComplejidad = {...INSUMOS_CFG};
+    await setDoc(doc(db,"config","tarifas_globales"), TARIFAS);
+    showToast("Tarifas y márgenes guardados ✓");
+  } catch(e){
+    showToast("Error al guardar tarifas: "+e.message, true);
+  }
   showSaving(false);
 }
 
@@ -585,7 +645,6 @@ function calcularCotizacion(state){
   let costoBase=0, mk=0, isr=0, sinIVA=0, iva=0, conIVA=0, precioMO=0, descuentoMO=0, franquiciaMO=0;
 
   if(hayEquipos){
-    // Solo se calcula mano de obra / admin / viaticos / insumos si hay al menos un equipo cotizado
     costoBase = moD+moN+moF+adm+viat+diag+insTotal;
     mk = TARIFAS.markup.manoObra*(moD+moN+moF)
        + TARIFAS.markup.administrativo*adm
@@ -602,7 +661,6 @@ function calcularCotizacion(state){
     franquiciaMO= precioMO*TARIFAS.escalas.franquicia;
   }
 
-  // Repuestos: formula independiente (margen/ISR/cartera/IVA), calculada para los 3 tiers
   const repPrecio     = calcularRepuestosTotal(state.repuestos, "precio");
   const repDescuento  = calcularRepuestosTotal(state.repuestos, "descuento");
   const repFranquicia = calcularRepuestosTotal(state.repuestos, "franquicia");
@@ -613,7 +671,7 @@ function calcularCotizacion(state){
     costoSinImpuestos:costoBase, sumaMarkups:mk, isr, precioSinIVA:sinIVA, iva, precioConIVA:conIVA,
     precioMO, descuentoMO, franquiciaMO, advertencias, hayEquipos,
     repuestos: { precio:repPrecio, descuento:repDescuento, franquicia:repFranquicia },
-    totalRepuestos: repPrecio.precioVenta, // referencia por defecto (tier "precio") para mostrar en resumen
+    totalRepuestos: repPrecio.precioVenta,
     totales:{
       precio:     precioMO     + repPrecio.precioVenta,
       descuento:  descuentoMO  + repDescuento.precioVenta,
@@ -716,8 +774,8 @@ function recalcular(){
       {label:"Diagnóstico",value:r.diagnostico},
       {label:"Costo base",value:r.costoSinImpuestos},
       {label:"Markups",value:r.sumaMarkups},
-      {label:"ISR (25%)",value:r.isr},
-      {label:"IVA (12%)",value:r.iva},
+      {label:"ISR ("+(TARIFAS.isr*100)+"%)",value:r.isr},
+      {label:"IVA ("+(TARIFAS.iva*100)+"%)",value:r.iva},
       {label:"Subtotal M.O.",value:r.precioMO}
     );
   } else if(state.repuestos.length===0 || !state.repuestos.some(rp=>rp.nombre&&Number(rp.precioUnitario)>0)){
@@ -742,9 +800,9 @@ function recalcular(){
   });
 
   const tg = document.getElementById("tier-options"); tg.innerHTML="";
-  [{key:"precio",label:"Precio",note:r.hayEquipos?"M.O. ×1.10 + Repuestos (40% margen)":"Repuestos (40% margen)",value:r.totales.precio},
-   {key:"descuento",label:"Descuento",note:r.hayEquipos?"Precio ×0.95 + Repuestos (30% margen)":"Repuestos (30% margen)",value:r.totales.descuento},
-   {key:"franquicia",label:"Franquicia",note:r.hayEquipos?"Precio ×0.90 + Repuestos (25% margen)":"Repuestos (25% margen)",value:r.totales.franquicia}
+  [{key:"precio",label:"Precio",note:r.hayEquipos?"M.O. + Repuestos (Tier 1)":"Repuestos (Tier 1)",value:r.totales.precio},
+   {key:"descuento",label:"Descuento",note:r.hayEquipos?"M.O. + Repuestos (Tier 2)":"Repuestos (Tier 2)",value:r.totales.descuento},
+   {key:"franquicia",label:"Franquicia",note:r.hayEquipos?"M.O. + Repuestos (Tier 3)":"Repuestos (Tier 3)",value:r.totales.franquicia}
   ].forEach(t=>{
     const c=el("div",{class:"tier-card"+(selectedTier===t.key?" selected":""),onClick:()=>{selectedTier=t.key;recalcular();}});
     c.appendChild(el("div",{class:"tname",text:t.label}));
@@ -799,8 +857,8 @@ function enviarCorreo(cot,r){
     `Viaticos+Admin.:   ${fmtQ(r.viaticos+r.administrativo)}`,
     `Diagnostico:       ${fmtQ(r.diagnostico)}`,
     `Markups:           ${fmtQ(r.sumaMarkups)}`,
-    `ISR (25%):         ${fmtQ(r.isr)}`,
-    `IVA (12%):         ${fmtQ(r.iva)}`,
+    `ISR (${TARIFAS.isr*100}%):         ${fmtQ(r.isr)}`,
+    `IVA (${TARIFAS.iva*100}%):         ${fmtQ(r.iva)}`,
     `Subtotal M.O.:     ${fmtQ(r.precioMO)}`
   ].join("\n") : "";
   const repPriceLines = (repSel && repSel.costoSinIVA>0) ? [
@@ -832,7 +890,7 @@ function resetForm(){
 }
 
 // ================================================================
-// HISTORICO
+// HISTORICO & EXCEL EXPORT
 // ================================================================
 function renderHistorico(){
   const tbody = document.getElementById("historico-body");
@@ -868,6 +926,31 @@ function renderHistorico(){
     tdA.appendChild(btnDel); tr.appendChild(tdA);
     tbody.appendChild(tr);
   });
+}
+
+function exportarExcel(){
+  if(!HISTORICO.length){ showToast("No hay cotizaciones para exportar", true); return; }
+  
+  const dataToExport = HISTORICO.map(cot => ({
+    "ID Cotización": cot.id,
+    "Fecha": cot.fecha,
+    "Vence": cot.vence,
+    "Cliente": cot.cliente,
+    "Correo": cot.correo || "",
+    "Vendedor": cot.vendedor || "",
+    "Jornada": cot.jornada,
+    "Tipo de Precio": capitalize(cot.tipoPrecio),
+    "Total (GTQ)": cot.total,
+    "Estado Comercial": cot.estadoComercial,
+    "Creado Por": cot.creadoPor || ""
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Cotizaciones ATG");
+  
+  XLSX.writeFile(workbook, "cotizaciones_atg.xlsx");
+  showToast("Archivo Excel descargado con éxito ✓");
 }
 
 function abrirDetalle(cot){
@@ -913,28 +996,83 @@ function abrirDetalle(cot){
   ov.classList.add("show");
 }
 
-function exportarJSON(){
-  const blob=new Blob([JSON.stringify(HISTORICO,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download="historico_cotizaciones.json"; a.click();
-  URL.revokeObjectURL(url);
+// ================================================================
+// CATALOGO & TARIFAS UI
+// ================================================================
+function renderTarifasForm(){
+  document.getElementById("cfg-tec-a").value = TARIFAS.costoTecnico["Tecnico A"];
+  document.getElementById("cfg-tec-b").value = TARIFAS.costoTecnico["Tecnico B"];
+  document.getElementById("cfg-tec-c").value = TARIFAS.costoTecnico["Tecnico C"];
+  document.getElementById("cfg-tec-d").value = TARIFAS.costoTecnico["Tecnico D"];
+
+  document.getElementById("cfg-diag").value  = TARIFAS.costoDiagnostico;
+  document.getElementById("cfg-admon").value = TARIFAS.ventasAdmon;
+  document.getElementById("cfg-operativo").value = TARIFAS.operativo;
+
+  document.getElementById("cfg-mk-mo").value  = TARIFAS.markup.manoObra;
+  document.getElementById("cfg-mk-adm").value = TARIFAS.markup.administrativo;
+  document.getElementById("cfg-mk-ins").value = TARIFAS.markup.insumos;
+  document.getElementById("cfg-mk-viat").value = TARIFAS.markup.viaticos;
+  document.getElementById("cfg-mk-diag").value = TARIFAS.markup.diagnostico;
+
+  document.getElementById("cfg-isr").value   = TARIFAS.isr;
+  document.getElementById("cfg-iva").value   = TARIFAS.iva;
+  document.getElementById("cfg-esc-p").value = TARIFAS.escalas.precio;
+  document.getElementById("cfg-esc-d").value = TARIFAS.escalas.descuento;
+  document.getElementById("cfg-esc-f").value = TARIFAS.escalas.franquicia;
+  document.getElementById("cfg-tope").value  = TARIFAS.topeAdvertencia;
+
+  document.getElementById("cfg-rep-p").value    = TARIFAS.repuestos.margenPct.precio;
+  document.getElementById("cfg-rep-d").value    = TARIFAS.repuestos.margenPct.descuento;
+  document.getElementById("cfg-rep-f").value    = TARIFAS.repuestos.margenPct.franquicia;
+  document.getElementById("cfg-rep-cart").value = TARIFAS.repuestos.cartera;
 }
 
-// ================================================================
-// CATALOGO UI
-// ================================================================
+async function guardarTarifasDesdeForm(){
+  TARIFAS.costoTecnico["Tecnico A"] = Number(document.getElementById("cfg-tec-a").value)||0;
+  TARIFAS.costoTecnico["Tecnico B"] = Number(document.getElementById("cfg-tec-b").value)||0;
+  TARIFAS.costoTecnico["Tecnico C"] = Number(document.getElementById("cfg-tec-c").value)||0;
+  TARIFAS.costoTecnico["Tecnico D"] = Number(document.getElementById("cfg-tec-d").value)||0;
+
+  TARIFAS.costoDiagnostico = Number(document.getElementById("cfg-diag").value)||0;
+  TARIFAS.ventasAdmon      = Number(document.getElementById("cfg-admon").value)||0;
+  TARIFAS.operativo        = Number(document.getElementById("cfg-operativo").value)||0;
+
+  TARIFAS.markup.manoObra  = Number(document.getElementById("cfg-mk-mo").value)||0;
+  TARIFAS.markup.administrativo = Number(document.getElementById("cfg-mk-adm").value)||0;
+  TARIFAS.markup.insumos   = Number(document.getElementById("cfg-mk-ins").value)||0;
+  TARIFAS.markup.viaticos  = Number(document.getElementById("cfg-mk-viat").value)||0;
+  TARIFAS.markup.diagnostico = Number(document.getElementById("cfg-mk-diag").value)||0;
+
+  TARIFAS.isr   = Number(document.getElementById("cfg-isr").value)||0;
+  TARIFAS.iva   = Number(document.getElementById("cfg-iva").value)||0;
+  TARIFAS.escalas.precio     = Number(document.getElementById("cfg-esc-p").value)||0;
+  TARIFAS.escalas.descuento  = Number(document.getElementById("cfg-esc-d").value)||0;
+  TARIFAS.escalas.franquicia = Number(document.getElementById("cfg-esc-f").value)||0;
+  TARIFAS.topeAdvertencia    = Number(document.getElementById("cfg-tope").value)||0;
+
+  TARIFAS.repuestos.margenPct.precio    = Number(document.getElementById("cfg-rep-p").value)||0;
+  TARIFAS.repuestos.margenPct.descuento = Number(document.getElementById("cfg-rep-d").value)||0;
+  TARIFAS.repuestos.margenPct.franquicia= Number(document.getElementById("cfg-rep-f").value)||0;
+  TARIFAS.repuestos.cartera             = Number(document.getElementById("cfg-rep-cart").value)||0;
+
+  await saveTarifasDB();
+  recalcular();
+}
+
 function renderCatalogo(){
-  // Insumos
+  renderTarifasForm();
+  
   const ib=document.getElementById("insumos-cfg-body"); ib.innerHTML="";
   ["Baja","Media","Alta"].forEach(comp=>{
     const tr=el("tr");
     tr.appendChild(el("td",{text:comp}));
     const td=el("td");
     const inp=el("input",{type:"number",min:"0",step:"10",value:INSUMOS_CFG[comp]??0});
-    inp.addEventListener("input",()=>{ INSUMOS_CFG[comp]=Number(inp.value)||0; saveInsumosDB(); recalcular(); });
+    inp.addEventListener("input",()=>{ INSUMOS_CFG[comp]=Number(inp.value)||0; saveTarifasDB(); recalcular(); });
     td.appendChild(inp); tr.appendChild(td); ib.appendChild(tr);
   });
-  // Catalogo
+  
   const cb=document.getElementById("catalogo-body"); cb.innerHTML="";
   CATALOGO.forEach(eq=>{
     const tr=el("tr");
@@ -984,7 +1122,6 @@ async function agregarEquipoCatalogo(){
   refrescarSelectsEquipo();
   showToast(`"${nombre}" agregado al catálogo ✓`);
 
-  // limpiar formulario
   document.getElementById("new-eq-nombre").value="";
   document.getElementById("new-eq-tipo").value="Caliente";
   document.getElementById("new-eq-valor").value="";
@@ -993,8 +1130,6 @@ async function agregarEquipoCatalogo(){
   document.getElementById("new-eq-horas").value="1.0";
 }
 
-// Refresca las opciones de equipo en las lineas de cotizacion ya abiertas en el formulario,
-// preservando la seleccion actual de cada fila cuando sigue existiendo en el catalogo.
 function refrescarSelectsEquipo(){
   document.querySelectorAll("#equipos-body .f-equipo").forEach(sel=>{
     const valorActual = sel.value;
@@ -1057,9 +1192,19 @@ onAuthStateChanged(auth, async user=>{
     document.getElementById("app-screen").style.display="block";
     document.getElementById("user-pill").textContent=user.email;
 
-    // Load shared config from Firestore
-    CATALOGO    = await loadCatalogoFromDB();
-    INSUMOS_CFG = await loadInsumosFromDB();
+    // VALIDACIÓN DE ADMINISTRADOR
+    const esAdmin = (user.email === "goperacionesatg@gmail.com");
+    document.getElementById("tab-catalogo").style.display = esAdmin ? "block" : "none";
+    const panelTarifas = document.getElementById("panel-tarifas-admin");
+    if(panelTarifas) panelTarifas.style.display = esAdmin ? "block" : "none";
+
+    // Load shared configs from Firestore
+    CATALOGO = await loadCatalogoFromDB();
+    if(esAdmin) await loadTarifasFromDB();
+    else {
+      // Cargar al menos tarifas y insumos para que los cálculos de los vendedores funcionen bien
+      await loadTarifasFromDB();
+    }
 
     // Setup form
     document.getElementById("inp-fecha").value=todayISO();
@@ -1072,10 +1217,24 @@ onAuthStateChanged(auth, async user=>{
     document.getElementById("btn-guardar").addEventListener("click",      guardarCotizacion);
     document.getElementById("btn-reset").addEventListener("click",        resetForm);
     document.getElementById("btn-add-equipo-catalogo").addEventListener("click", agregarEquipoCatalogo);
+    
+    document.getElementById("btn-guardar-tarifas").addEventListener("click", guardarTarifasDesdeForm);
+    document.getElementById("btn-restaurar-tarifas-base").addEventListener("click", async ()=>{
+      if(confirm("¿Restaurar todas las tarifas y márgenes a sus valores predeterminados?")){
+        TARIFAS = JSON.parse(JSON.stringify(TARIFAS_BASE));
+        INSUMOS_CFG = {...TARIFAS.insumosPorComplejidad};
+        await saveTarifasDB();
+        renderCatalogo();
+        recalcular();
+        showToast("Tarifas restauradas por defecto ✓");
+      }
+    });
+
     ["inp-alimentacion","inp-gasolina","inp-flete","inp-parqueo","inp-jornada"].forEach(id=>document.getElementById(id).addEventListener("input",recalcular));
     document.getElementById("filter-cliente").addEventListener("input",   renderHistorico);
     document.getElementById("filter-estado").addEventListener("change",   renderHistorico);
-    document.getElementById("btn-export-json").addEventListener("click",  exportarJSON);
+    document.getElementById("btn-export-excel").addEventListener("click", exportarExcel);
+    
     document.getElementById("btn-restaurar-catalogo").addEventListener("click",async ()=>{
       if(confirm("¿Restaurar catálogo a valores por defecto? Se perderán los equipos agregados manualmente.")){
         CATALOGO=JSON.parse(JSON.stringify(CATALOGO_DEFAULT));
@@ -1083,14 +1242,15 @@ onAuthStateChanged(auth, async user=>{
       }
     });
     document.getElementById("btn-restaurar-insumos").addEventListener("click",async ()=>{
-      INSUMOS_CFG={...TARIFAS.insumosPorComplejidad};
-      await saveInsumosDB(); renderCatalogo(); showToast("Insumos restaurados");
+      INSUMOS_CFG={...TARIFAS_BASE.insumosPorComplejidad};
+      TARIFAS.insumosPorComplejidad={...INSUMOS_CFG};
+      await saveTarifasDB(); renderCatalogo(); showToast("Insumos restaurados");
     });
     document.getElementById("modal-overlay").addEventListener("click",e=>{ if(e.target.id==="modal-overlay")e.target.classList.remove("show"); });
 
     setupTabs();
     recalcular();
-    subscribeHistorico(); // real-time listener
+    subscribeHistorico();
   } else {
     currentUser=null;
     document.getElementById("login-screen").style.display="flex";
